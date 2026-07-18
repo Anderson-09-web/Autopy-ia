@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, startTransition } from "react";
 import { useAuth, getCustomFetchOptions } from "@/lib/auth";
 import { useCreateChatCompletion, useGenerateImage, useListModels } from "@workspace/api-client-react";
 import type { ChatMessage } from "@workspace/api-client-react";
@@ -90,7 +90,7 @@ export default function Playground() {
           <h1 className="text-2xl font-bold tracking-tight">Playground</h1>
           <p className="text-muted-foreground text-sm">Prueba modelos y prompts de forma interactiva.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setApiKey("")} className="border-white/10">
+        <Button variant="outline" size="sm" onClick={() => startTransition(() => setApiKey(""))} className="border-white/10">
           <Settings className="h-4 w-4 mr-2" /> Cambiar key
         </Button>
       </div>

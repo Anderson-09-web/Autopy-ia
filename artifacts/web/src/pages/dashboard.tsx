@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useAuth, getCustomFetchOptions } from "@/lib/auth";
 import {
   useGetDashboardStats,
@@ -134,7 +134,7 @@ export default function Dashboard() {
           variant="outline"
           size="sm"
           className="gap-2 border-white/10 hover:border-destructive/50 hover:text-destructive"
-          onClick={() => setAdminKey("")}
+          onClick={() => startTransition(() => setAdminKey(""))}
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesión
