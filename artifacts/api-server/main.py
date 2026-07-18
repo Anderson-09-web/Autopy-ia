@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
 from app.routers import health, chat, images, status, models, discord
-from app.routers.admin import keys, dashboard, logs, models_admin
+from app.routers.admin import keys, dashboard, logs, models_admin, verify
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(status.router, prefix=API, tags=["status"])
 app.include_router(discord.router, prefix=API, tags=["discord"])
 
 # Admin routes
+app.include_router(verify.router, prefix=ADMIN, tags=["admin"])
 app.include_router(keys.router, prefix=ADMIN, tags=["admin"])
 app.include_router(dashboard.router, prefix=ADMIN, tags=["admin"])
 app.include_router(logs.router, prefix=ADMIN, tags=["admin"])

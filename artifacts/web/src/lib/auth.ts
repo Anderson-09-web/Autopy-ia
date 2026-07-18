@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { fetchAuthSession } from "./auth-utils"; // placeholder if needed
 
 export const API_KEY_LOCAL_STORAGE_KEY = "autopy_api_key";
 export const ADMIN_KEY_LOCAL_STORAGE_KEY = "autopy_admin_key";
@@ -19,7 +18,7 @@ export function useAuth() {
   return { apiKey, setApiKey, adminKey, setAdminKey };
 }
 
-export function getCustomFetchOptions(authParams: { apiKey?: string, adminKey?: string }): RequestInit {
+export function getCustomFetchOptions(authParams: { apiKey?: string; adminKey?: string }): RequestInit {
   const headers: Record<string, string> = {};
   if (authParams.apiKey) {
     headers["Authorization"] = `Bearer ${authParams.apiKey}`;
@@ -27,8 +26,5 @@ export function getCustomFetchOptions(authParams: { apiKey?: string, adminKey?: 
   if (authParams.adminKey) {
     headers["X-Admin-Key"] = authParams.adminKey;
   }
-  
-  return {
-    headers
-  };
+  return { headers };
 }
