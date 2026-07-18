@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuth, getCustomFetchOptions } from "@/lib/auth";
 import { 
   useGetDashboardStats, 
   useListApiKeys, 
@@ -18,42 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { format } from "date-fns";
-import { Copy, Plus, Trash2, KeyRound, ArrowRightLeft, Clock, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Copy, Plus, Trash2, ArrowRightLeft, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 export default function Dashboard() {
-  const { adminKey, setAdminKey } = useAuth();
-  
-  if (!adminKey) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
-        <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mb-6">
-          <ShieldAlert className="w-8 h-8 text-red-500" />
-        </div>
-        <h2 className="text-2xl font-bold mb-2">Admin Access Required</h2>
-        <p className="text-muted-foreground mb-8">
-          Enter the admin key configured in your backend to access the platform dashboard.
-        </p>
-        <Card className="w-full glass border-red-500/20">
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <Input 
-                type="password"
-                placeholder="Admin Key"
-                onChange={(e) => {
-                  if (e.target.value.trim()) {
-                    setAdminKey(e.target.value.trim());
-                  }
-                }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col p-6 gap-8 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between">
@@ -61,12 +29,9 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight">Platform Dashboard</h1>
           <p className="text-muted-foreground text-sm">Manage keys, monitor usage, and configure routing.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setAdminKey("")}>
-          Logout Admin
-        </Button>
       </div>
 
-      <StatsOverview adminKey={adminKey} />
+      <StatsOverview />
       
       <Tabs defaultValue="keys" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3 glass bg-black/40">
@@ -76,13 +41,13 @@ export default function Dashboard() {
         </TabsList>
         <div className="mt-6">
           <TabsContent value="keys" className="m-0 border-none p-0 outline-none">
-            <ApiKeysPanel adminKey={adminKey} />
+            <ApiKeysPanel />
           </TabsContent>
           <TabsContent value="logs" className="m-0 border-none p-0 outline-none">
-            <LogsPanel adminKey={adminKey} />
+            <LogsPanel />
           </TabsContent>
           <TabsContent value="models" className="m-0 border-none p-0 outline-none">
-            <ModelsPanel adminKey={adminKey} />
+            <ModelsPanel />
           </TabsContent>
         </div>
       </Tabs>
@@ -90,8 +55,8 @@ export default function Dashboard() {
   );
 }
 
-function StatsOverview({ adminKey }: { adminKey: string }) {
-  const { data: stats, isLoading } = useGetDashboardStats({ request: getCustomFetchOptions({ adminKey }) });
+function StatsOverview() {
+  const { data: stats, isLoading } = useGetDashboardStats({});
 
   if (isLoading || !stats) {
     return <div className="h-32 rounded-xl bg-card animate-pulse border border-white/5" />;
@@ -174,12 +139,12 @@ function StatsOverview({ adminKey }: { adminKey: string }) {
   );
 }
 
-function ApiKeysPanel({ adminKey }: { adminKey: string }) {
-  const { data, refetch } = useListApiKeys({}, { request: getCustomFetchOptions({ adminKey }) });
+function ApiKeysPanel() {
+  const { data, refetch } = useListApiKeys({});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
-  const createKey = useCreateApiKey({ request: getCustomFetchOptions({ adminKey }) });
-  const deleteKey = useDeleteApiKey({ request: getCustomFetchOptions({ adminKey }) });
+  const createKey = useCreateApiKey({});
+  const deleteKey = useDeleteApiKey({});
   const { toast } = useToast();
 
   const handleCreate = () => {
@@ -297,9 +262,9 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
   );
 }
 
-function LogsPanel({ adminKey }: { adminKey: string }) {
+function LogsPanel() {
   const [status, setStatus] = useState<string>("all");
-  const { data } = useGetRequestLogs({ limit: 50, status: status === "all" ? undefined : status as any }, { request: getCustomFetchOptions({ adminKey }) });
+  const { data } = useGetRequestLogs({ limit: 50, status: status === "all" ? undefined : status as any });
 
   return (
     <Card className="glass shadow-none bg-black/20">
@@ -376,9 +341,9 @@ function LogsPanel({ adminKey }: { adminKey: string }) {
   );
 }
 
-function ModelsPanel({ adminKey }: { adminKey: string }) {
-  const { data, refetch } = useAdminListModels({ request: getCustomFetchOptions({ adminKey }) });
-  const updateModel = useUpdateModelStatus({ request: getCustomFetchOptions({ adminKey }) });
+function ModelsPanel() {
+  const { data, refetch } = useAdminListModels({});
+  const updateModel = useUpdateModelStatus({});
   const { toast } = useToast();
 
   const handleStatusChange = (id: string, status: any) => {
