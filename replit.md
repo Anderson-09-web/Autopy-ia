@@ -1,45 +1,70 @@
-# [Project name]
+# Autopy AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A unified AI platform that routes developer requests through multiple AI models (OpenAI, Groq) behind a single API. Includes automatic failover, content moderation, caching, rate limiting, and a full admin dashboard.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `bash /home/runner/workspace/artifacts/api-server/start.sh` — run the Python FastAPI server (port 8080, proxied at `/api`)
+- `pnpm --filter @workspace/web run dev` — run the React web frontend (port dynamic, proxied at `/`)
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks from OpenAPI spec
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- **Frontend**: React + Vite + Tailwind CSS + Wouter routing + React Query
+- **Backend**: Python 3.11 + FastAPI + Uvicorn (replaces the original Node.js api-server)
+- **Database**: PostgreSQL + SQLAlchemy (sync) — tables auto-created on startup
+- **Cache**: Redis (optional) with in-memory fallback
+- **AI Providers**: OpenAI, Groq (extensible via `app/services/providers/`)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/api-server/` — Python FastAPI backend
+  - `main.py` — FastAPI app entry + router registration
+  - `app/config.py` — environment settings
+  - `app/models/` — SQLAlchemy models (api_keys, request_logs)
+  - `app/services/ai_service.py` — failover + model registry
+  - `app/services/providers/` — OpenAI / Groq provider adapters
+  - `app/routers/` — endpoint handlers (chat, images, status, discord, admin/*)
+  - `requirements.txt` — Python dependencies
+- `artifacts/web/` — React web app
+  - `src/pages/` — Landing, Playground, Docs, Dashboard, Status
+- `lib/api-spec/openapi.yaml` — single source of truth for API contracts
+
+## Environment Variables Required
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (auto-provisioned by Replit) |
+| `OPENAI_API_KEY` | Your OpenAI API key |
+| `GROQ_API_KEY` | Your Groq API key |
+| `ADMIN_KEY` | Admin panel secret (default: `autopy-admin-secret-change-in-prod`) |
+| `REDIS_URL` | Optional Redis URL for caching |
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Python FastAPI** replaces the Node.js template api-server; the artifact.toml was updated to run `start.sh` with an absolute path since the workflow CWD is not `/home/runner/workspace`.
+- **Sync SQLAlchemy** (psycopg2) over async for simplicity; FastAPI runs sync routes in thread pools automatically.
+- **In-memory fallback cache** — works without Redis; hit rate is tracked and exposed via `/api/v1/status`.
+- **Failover is provider-level** — each provider has a backoff timer; on failure the next provider in priority order is tried silently.
+- **Content moderation** — keyword regex first (fast), then optional OpenAI Moderation API.
 
-## Product
+## Adding new AI providers
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+1. Create `app/services/providers/my_provider.py` extending `BaseProvider`
+2. Implement `async def chat(...)` (and optionally `generate_image`)
+3. Add to `_build_providers()` in `app/services/ai_service.py`
+4. Add model entries to `_MODEL_REGISTRY`
+
+## Admin Access
+
+Default admin key: `autopy-admin-secret-change-in-prod` (change via `ADMIN_KEY` env var)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+_Populate as you build._
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- The workflow for the API server uses an **absolute path** (`bash /home/runner/workspace/artifacts/api-server/start.sh`) because the workflow runner does not set CWD to the workspace root.
+- Python packages are installed into `.pythonlibs/` — use `/home/runner/workspace/.pythonlibs/bin/python3` to reference Python explicitly if running from shell.
+- `pip3` is not in PATH by default; the start.sh handles package installation automatically on each start.

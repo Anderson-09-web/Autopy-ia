@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "kyifNezsBE9ksPsJj5zEd"
+uri = "file://artifacts/web/src/assets/autopy-logo.png"
+type = "image"
+title = "Autopy AI — Logo"

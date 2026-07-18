@@ -1,0 +1,35 @@
+"""
+Application configuration loaded from environment variables.
+"""
+from typing import Optional
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # Database
+    database_url: str = ""
+
+    # AI Provider API Keys
+    openai_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
+
+    # Cache
+    redis_url: Optional[str] = None
+
+    # Admin
+    admin_key: str = "autopy-admin-secret-change-in-prod"
+
+    # Rate limiting defaults
+    default_rate_limit_rpm: int = 100  # requests per minute
+
+    # Provider timeouts (seconds)
+    provider_timeout: float = 30.0
+    failover_timeout: float = 10.0  # faster timeout before failover
+
+    # App version
+    version: str = "1.0.0"
+
+    model_config = {"env_file": ".env", "extra": "ignore"}
+
+
+settings = Settings()

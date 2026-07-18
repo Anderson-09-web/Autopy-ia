@@ -1,0 +1,18 @@
+"""Image generation Pydantic schemas."""
+from pydantic import BaseModel
+
+
+class ImageRequest(BaseModel):
+    prompt: str
+    size: str = "1024x1024"
+    format: str = "url"  # url | base64
+    model: str | None = None
+
+
+class ImageResponse(BaseModel):
+    success: bool = True
+    url: str | None = None
+    base64: str | None = None
+    model: str
+    provider: str
+    latency_ms: int | None = None
