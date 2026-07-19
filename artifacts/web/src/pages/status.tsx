@@ -5,22 +5,46 @@ import { Activity, Cpu, Server, Clock, CheckCircle2, AlertTriangle, XCircle } fr
 import { motion } from "framer-motion";
 
 export default function Status() {
-  const { data: status, isLoading } = useGetSystemStatus({ query: { refetchInterval: 10000 } });
+  // No API key needed — status is public
+  const { data: status, isLoading, isError } = useGetSystemStatus({ query: { refetchInterval: 10000 } });
 
-  if (isLoading || !status) {
+  if (isLoading) {
     return (
-      <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
-        <div className="h-8 w-48 bg-card animate-pulse rounded mb-8" />
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-card animate-pulse rounded-xl" />)}
+      <div className="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+        <div className="h-8 w-48 bg-white/5 animate-pulse rounded" />
+        <div className="grid md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-white/5 animate-pulse rounded-xl border border-white/5" />)}
         </div>
-        <div className="h-[400px] bg-card animate-pulse rounded-xl" />
+        <div className="h-[400px] bg-white/5 animate-pulse rounded-xl border border-white/5" />
       </div>
     );
   }
 
-  const isHealthy = status.modelsDown === 0 && status.uptime > 0.99;
-  const isDegraded = status.modelsDown > 0 && status.modelsActive > 0;
+  if (isError || !status) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
+        <div>
+          <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          <p>No se pudo cargar el estado del sistema.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const uptimeSecs = status.uptime ?? 0;
+  const modelsDown = status.modelsDown ?? 0;
+  const modelsActive = status.modelsActive ?? 0;
+  const isHealthy = modelsDown === 0;
+  const isDegraded = modelsDown > 0 && modelsActive > 0;
+
+  function formatUptime(secs: number): string {
+    if (secs < 60) return `${Math.floor(secs)}s`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ${Math.floor(secs % 60)}s`;
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h < 24) return `${h}h ${m}m`;
+    return `${Math.floor(h / 24)}d ${h % 24}h`;
+  }
   
   return (
     <div className="flex-1 flex flex-col p-6 gap-8 max-w-7xl mx-auto w-full">
@@ -43,8 +67,8 @@ export default function Status() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatusCard
-          title="Global Uptime"
-          value={`${(status.uptime * 100).toFixed(2)}%`}
+          title="Uptime"
+          value={formatUptime(uptimeSecs)}
           icon={Activity}
           status="ok"
         />

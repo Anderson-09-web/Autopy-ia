@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Terminal, LayoutDashboard, FileText, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/error-boundary";
 import autopyLogo from "@/assets/autopy-logo.png";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -48,7 +49,9 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="flex-1 flex flex-col">{children}</main>
+      <main className="flex-1 flex flex-col">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
     </div>
   );
 }

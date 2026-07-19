@@ -11,8 +11,6 @@ from sqlalchemy import func
 import psutil
 
 from app.database import get_db
-from app.middleware.auth import require_api_key
-from app.models.api_key import ApiKey
 from app.models.log import RequestLog
 from app.services.ai_service import get_all_models
 from app.services.cache import cache
@@ -24,7 +22,6 @@ _start_time = time.time()
 
 @router.get("/v1/status")
 async def get_system_status(
-    _: ApiKey = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     models = get_all_models()

@@ -15,15 +15,55 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
-import { Copy, Plus, Trash2, ArrowRightLeft, AlertTriangle, CheckCircle2, ShieldCheck, LogOut, Eye, EyeOff } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { Copy, Plus, Trash2, ArrowRightLeft, AlertTriangle, CheckCircle2, ShieldCheck, LogOut, Eye, EyeOff, Key, List, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import autopyLogo from "@/assets/autopy-logo.png";
 
-// ─── Admin Login ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function safeDate(val: string | null | undefined, fmt: string): string {
+  if (!val) return "—";
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return "—";
+    // manual format to avoid date-fns import issues
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    if (fmt === "date") return `${pad(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    if (fmt === "datetime") return `${pad(d.getDate())} ${months[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return d.toLocaleDateString();
+  } catch {
+    return "—";
+  }
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for iframe/unfocused contexts
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ─── Admin Login ──────────────────────────────────────────────────────────────
 
 function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
   const [key, setKey] = useState("");
@@ -58,7 +98,6 @@ function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo + heading */}
         <div className="flex flex-col items-center gap-4 text-center">
           <img src={autopyLogo} alt="Autopy AI" className="h-14 w-14 object-contain drop-shadow-[0_0_16px_rgba(124,58,237,0.5)]" />
           <div>
@@ -66,8 +105,6 @@ function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
             <p className="text-muted-foreground text-sm mt-1">Solo para administradores de Autopy AI</p>
           </div>
         </div>
-
-        {/* Login card */}
         <Card className="glass border-white/10">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -82,11 +119,8 @@ function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
                     className="bg-black/40 border-white/10 pr-10"
                     autoFocus
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShow(!show)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-                  >
+                  <button type="button" onClick={() => setShow(!show)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors">
                     {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -102,7 +136,6 @@ function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
             </form>
           </CardContent>
         </Card>
-
         <p className="text-center text-xs text-muted-foreground">
           La ADMIN_KEY está configurada en los Secrets del proyecto.
         </p>
@@ -111,17 +144,28 @@ function AdminLogin({ onLogin }: { onLogin: (key: string) => void }) {
   );
 }
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ─── Dashboard shell ──────────────────────────────────────────────────────────
+// Manual tab state instead of Radix <Tabs> to avoid portal conflicts:
+// <Select> and <Dialog> inside TabsContent cause removeChild crashes when
+// Radix mounts all panels simultaneously and hides them with CSS.
+
+type DashTab = "keys" | "logs" | "models";
 
 export default function Dashboard() {
   const { adminKey, setAdminKey } = useAuth();
+  const [tab, setTab] = useState<DashTab>("keys");
 
-  if (!adminKey) {
-    return <AdminLogin onLogin={setAdminKey} />;
-  }
+  if (!adminKey) return <AdminLogin onLogin={setAdminKey} />;
+
+  const tabs: { id: DashTab; label: string; icon: React.ElementType }[] = [
+    { id: "keys",   label: "API Keys",    icon: Key },
+    { id: "logs",   label: "Registros",   icon: List },
+    { id: "models", label: "Modelos",     icon: Cpu },
+  ];
 
   return (
     <div className="flex-1 flex flex-col p-6 gap-8 max-w-7xl mx-auto w-full">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -130,37 +174,35 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-sm">Gestiona claves, supervisa el uso y configura el enrutamiento.</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
+        <Button variant="outline" size="sm"
           className="gap-2 border-white/10 hover:border-destructive/50 hover:text-destructive"
-          onClick={() => startTransition(() => setAdminKey(""))}
-        >
-          <LogOut className="h-4 w-4" />
-          Cerrar sesión
+          onClick={() => startTransition(() => setAdminKey(""))}>
+          <LogOut className="h-4 w-4" /> Cerrar sesión
         </Button>
       </div>
 
-      <StatsOverview adminKey={adminKey} />
+      <ErrorBoundary>
+        <StatsOverview adminKey={adminKey} />
+      </ErrorBoundary>
 
-      <Tabs defaultValue="keys" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3 glass bg-black/40">
-          <TabsTrigger value="keys" className="data-[state=active]:bg-primary/20">API Keys</TabsTrigger>
-          <TabsTrigger value="logs" className="data-[state=active]:bg-primary/20">Registros</TabsTrigger>
-          <TabsTrigger value="models" className="data-[state=active]:bg-primary/20">Modelos</TabsTrigger>
-        </TabsList>
-        <div className="mt-6">
-          <TabsContent value="keys" className="m-0 border-none p-0 outline-none">
-            <ApiKeysPanel adminKey={adminKey} />
-          </TabsContent>
-          <TabsContent value="logs" className="m-0 border-none p-0 outline-none">
-            <LogsPanel adminKey={adminKey} />
-          </TabsContent>
-          <TabsContent value="models" className="m-0 border-none p-0 outline-none">
-            <ModelsPanel adminKey={adminKey} />
-          </TabsContent>
-        </div>
-      </Tabs>
+      {/* Manual tab bar */}
+      <div className="flex gap-1 p-1 rounded-lg bg-black/40 border border-white/5 w-fit">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              tab === id ? "bg-primary/20 text-white" : "text-muted-foreground hover:text-white hover:bg-white/5"
+            }`}>
+            <Icon className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* One panel at a time — no simultaneous portal mounting */}
+      <ErrorBoundary key={tab}>
+        {tab === "keys"   && <ApiKeysPanel adminKey={adminKey} />}
+        {tab === "logs"   && <LogsPanel    adminKey={adminKey} />}
+        {tab === "models" && <ModelsPanel  adminKey={adminKey} />}
+      </ErrorBoundary>
     </div>
   );
 }
@@ -182,52 +224,55 @@ function StatsOverview({ adminKey }: { adminKey: string }) {
           <ArrowRightLeft className="h-4 w-4 text-primary" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.totalRequests?.toLocaleString()}</div>
-          <p className="text-xs text-muted-foreground mt-1">+{stats.requestsToday?.toLocaleString()} today</p>
+          <div className="text-2xl font-bold">{(stats.totalRequests ?? 0).toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground mt-1">+{(stats.requestsToday ?? 0).toLocaleString()} today</p>
         </CardContent>
       </Card>
+
       <Card className="glass shadow-none bg-black/20">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Tokens Used</CardTitle>
           <span className="font-mono font-bold text-accent text-sm">TOK</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{(stats.totalTokens || 0).toLocaleString()}</div>
-          <p className="text-xs text-muted-foreground mt-1">+{(stats.tokensToday || 0).toLocaleString()} today</p>
+          <div className="text-2xl font-bold">{(stats.totalTokens ?? 0).toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground mt-1">+{(stats.tokensToday ?? 0).toLocaleString()} today</p>
         </CardContent>
       </Card>
+
       <Card className="glass shadow-none bg-black/20">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Cache Hit Rate</CardTitle>
           <CheckCircle2 className="h-4 w-4 text-green-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{((stats.cacheHitRate || 0) * 100).toFixed(1)}%</div>
-          <p className="text-xs text-muted-foreground mt-1">Avg {Math.round(stats.avgLatencyMs || 0)}ms latency</p>
+          <div className="text-2xl font-bold">{((stats.cacheHitRate ?? 0) * 100).toFixed(1)}%</div>
+          <p className="text-xs text-muted-foreground mt-1">Avg {Math.round(stats.avgLatencyMs ?? 0)}ms latency</p>
         </CardContent>
       </Card>
+
       <Card className="glass shadow-none bg-black/20">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Error Rate</CardTitle>
           <AlertTriangle className="h-4 w-4 text-destructive" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{((stats.errorRate || 0) * 100).toFixed(2)}%</div>
-          <p className="text-xs text-muted-foreground mt-1">{stats.activeApiKeys} active API keys</p>
+          <div className="text-2xl font-bold">{((stats.errorRate ?? 0) * 100).toFixed(2)}%</div>
+          <p className="text-xs text-muted-foreground mt-1">{stats.activeApiKeys ?? 0} active API keys</p>
         </CardContent>
       </Card>
 
-      {stats.requestsOverTime && stats.requestsOverTime.length > 0 && (
+      {(stats.requestsOverTime?.length ?? 0) > 0 && (
         <Card className="col-span-full glass shadow-none bg-black/20">
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">Tráfico (últimos 7 días)</CardTitle>
           </CardHeader>
           <CardContent className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.requestsOverTime}>
+              <LineChart data={stats.requestsOverTime ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false}
-                  tickFormatter={(v) => format(new Date(v), "MMM d")} />
+                  tickFormatter={(v) => safeDate(v, "date")} />
                 <YAxis stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} />
                 <RechartsTooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "rgba(255,255,255,0.1)", borderRadius: "8px" }}
@@ -251,6 +296,7 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
   const { data, refetch } = useListApiKeys({}, opts);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const createKey = useCreateApiKey(opts);
   const deleteKey = useDeleteApiKey(opts);
   const { toast } = useToast();
@@ -271,9 +317,16 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
     );
   };
 
-  const copyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast({ title: "Copiada al portapapeles" });
+  const handleCopy = async (key: string) => {
+    const ok = await copyToClipboard(key);
+    toast({ title: ok ? "Copiada al portapapeles" : "No se pudo copiar — selecciónala manualmente" });
+  };
+
+  const handleDelete = (keyId: string) => {
+    deleteKey.mutate({ keyId }, {
+      onSuccess: () => { toast({ title: "Key eliminada" }); refetch(); setDeleteConfirmId(null); },
+      onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
+    });
   };
 
   return (
@@ -305,6 +358,22 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
           </DialogContent>
         </Dialog>
       </CardHeader>
+
+      {/* Delete confirmation dialog — state-driven, no browser confirm() */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+        <DialogContent className="glass">
+          <DialogHeader><DialogTitle>¿Eliminar esta API Key?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">Esta acción es irreversible. Las peticiones que usen esta key fallarán de inmediato.</p>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              disabled={deleteKey.isPending}>
+              {deleteKey.isPending ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContent>
         <Table>
           <TableHeader>
@@ -318,13 +387,14 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.keys?.map((key) => (
+            {(data?.keys ?? []).map((key) => (
               <TableRow key={key.id} className="border-white/5 border-b hover:bg-white/[0.02]">
                 <TableCell className="font-medium">{key.name}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2 font-mono text-sm">
-                    {key.key.substring(0, 8)}…{key.key.substring(key.key.length - 4)}
-                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-white/10" onClick={() => copyKey(key.key)}>
+                    {key.key ? `${key.key.substring(0, 8)}…${key.key.substring(key.key.length - 4)}` : "—"}
+                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-white/10"
+                      onClick={() => key.key && handleCopy(key.key)}>
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
@@ -337,23 +407,21 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                  {key.totalRequests?.toLocaleString()}
+                  {(key.totalRequests ?? 0).toLocaleString()}
                 </TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  {format(new Date(key.createdAt), "dd MMM yyyy")}
+                <TableCell className="text-right text-muted-foreground text-sm">
+                  {safeDate(key.createdAt, "date")}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost" size="icon"
+                  <Button variant="ghost" size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => { if (confirm("¿Revocar y eliminar esta key?")) deleteKey.mutate({ keyId: key.id }, { onSuccess: () => refetch() }); }}
-                  >
+                    onClick={() => setDeleteConfirmId(key.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
               </TableRow>
             ))}
-            {!data?.keys?.length && (
+            {!(data?.keys?.length) && (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   No hay API keys. Crea una con el botón de arriba.
@@ -370,9 +438,9 @@ function ApiKeysPanel({ adminKey }: { adminKey: string }) {
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
 function LogsPanel({ adminKey }: { adminKey: string }) {
-  const [status, setStatus] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const { data } = useGetRequestLogs(
-    { limit: 50, status: status === "all" ? undefined : (status as any) },
+    { limit: 50, status: statusFilter === "all" ? undefined : (statusFilter as any) },
     { request: getCustomFetchOptions({ adminKey }) }
   );
 
@@ -380,7 +448,7 @@ function LogsPanel({ adminKey }: { adminKey: string }) {
     <Card className="glass shadow-none bg-black/20">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Registros de solicitudes</CardTitle>
-        <Select value={status} onValueChange={setStatus}>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px] h-8 bg-black/40 border-white/10">
             <SelectValue placeholder="Filtrar estado" />
           </SelectTrigger>
@@ -405,19 +473,19 @@ function LogsPanel({ adminKey }: { adminKey: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.logs?.map((log) => (
+            {(data?.logs ?? []).map((log) => (
               <TableRow key={log.id} className="border-white/5 border-b hover:bg-white/[0.02]">
-                <TableCell className="text-muted-foreground whitespace-nowrap">
-                  {format(new Date(log.createdAt), "dd MMM HH:mm:ss")}
+                <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
+                  {safeDate(log.createdAt, "datetime")}
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className={
                     log.status === "success" ? "text-green-400 border-green-500/20 bg-green-500/10" :
-                    log.status === "error" ? "text-destructive border-destructive/20 bg-destructive/10" :
+                    log.status === "error"   ? "text-destructive border-destructive/20 bg-destructive/10" :
                     "text-yellow-400 border-yellow-500/20 bg-yellow-500/10"
                   }>{log.status}</Badge>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{log.endpoint}</TableCell>
+                <TableCell className="font-mono text-xs">{log.endpoint ?? "—"}</TableCell>
                 <TableCell>
                   {log.provider
                     ? <div className="flex items-center gap-1.5 text-sm">
@@ -428,14 +496,14 @@ function LogsPanel({ adminKey }: { adminKey: string }) {
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                  {log.latencyMs ? `${log.latencyMs}ms` : "—"}
+                  {log.latencyMs != null ? `${log.latencyMs}ms` : "—"}
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                  {log.tokensUsed || "—"}
+                  {log.tokensUsed ?? "—"}
                 </TableCell>
               </TableRow>
             ))}
-            {!data?.logs?.length && (
+            {!(data?.logs?.length) && (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   No hay registros todavía.
@@ -460,6 +528,7 @@ function ModelsPanel({ adminKey }: { adminKey: string }) {
   const handleStatusChange = (id: string, status: any) => {
     updateModel.mutate({ data: { id, status } }, {
       onSuccess: () => { toast({ title: "Modelo actualizado" }); refetch(); },
+      onError: () => toast({ title: "Error al actualizar", variant: "destructive" }),
     });
   };
 
@@ -480,7 +549,7 @@ function ModelsPanel({ adminKey }: { adminKey: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.models?.map((m) => (
+            {(data?.models ?? []).map((m) => (
               <TableRow key={m.id} className="border-white/5 border-b hover:bg-white/[0.02]">
                 <TableCell className="font-medium capitalize">{m.provider}</TableCell>
                 <TableCell className="font-mono text-sm">{m.id}</TableCell>
@@ -491,7 +560,7 @@ function ModelsPanel({ adminKey }: { adminKey: string }) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Select value={m.status} onValueChange={(val) => handleStatusChange(m.id, val)}>
+                  <Select value={m.status ?? "active"} onValueChange={(val) => handleStatusChange(m.id, val)}>
                     <SelectTrigger className="w-[140px] h-8 bg-black/40 border-white/10">
                       <SelectValue />
                     </SelectTrigger>
