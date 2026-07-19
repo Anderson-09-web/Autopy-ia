@@ -13,8 +13,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const links = [
     { href: "/playground", label: "Playground", icon: Terminal },
     { href: "/docs", label: "Docs", icon: FileText },
-    // Dashboard solo visible si hay admin key guardada
-    ...(adminKey ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/status", label: "Status", icon: Activity },
   ];
 

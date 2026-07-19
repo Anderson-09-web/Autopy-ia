@@ -1,11 +1,95 @@
+import { useState } from "react";
 import { useGetSystemStatus } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Cpu, Server, Clock, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Activity, Cpu, Server, Clock, CheckCircle2, AlertTriangle, XCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+
+// ─── Admin gate para Status ───────────────────────────────────────────────────
+
+function StatusAdminGate({ onLogin }: { onLogin: (key: string) => void }) {
+  const [key, setKey] = useState("");
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!key.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "X-Admin-Key": key.trim() },
+      });
+      if (res.ok) {
+        onLogin(key.trim());
+        toast({ title: "Acceso concedido" });
+      } else {
+        setError("Clave incorrecta.");
+      }
+    } catch {
+      setError("No se pudo conectar con el servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="w-full max-w-sm space-y-8 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <ShieldCheck className="h-12 w-12 text-primary opacity-80" />
+          <div>
+            <h2 className="text-2xl font-bold">Estado del sistema</h2>
+            <p className="text-muted-foreground text-sm mt-1">Solo visible para administradores.</p>
+          </div>
+        </div>
+        <Card className="glass border-white/10 text-left">
+          <CardContent className="pt-5">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="relative">
+                <Input
+                  type={show ? "text" : "password"}
+                  placeholder="Admin Key…"
+                  value={key}
+                  onChange={(e) => { setKey(e.target.value); setError(""); }}
+                  className="bg-black/40 border-white/10 pr-10"
+                  autoFocus
+                />
+                <button type="button" onClick={() => setShow(!show)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors">
+                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {error && <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="h-3 w-3" />{error}</p>}
+              <Button type="submit" disabled={!key.trim() || loading} className="w-full">
+                {loading ? "Verificando…" : "Ver estado"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 export default function Status() {
-  // No API key needed — status is public
+  const { adminKey, setAdminKey } = useAuth();
+
+  // Mostrar gate si no hay adminKey
+  if (!adminKey) return <StatusAdminGate onLogin={setAdminKey} />;
+
+  return <StatusContent />;
+}
+
+function StatusContent() {
   const { data: status, isLoading, isError } = useGetSystemStatus({ query: { refetchInterval: 10000 } });
 
   if (isLoading) {
