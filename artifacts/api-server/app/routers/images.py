@@ -58,9 +58,18 @@ async def generate_image(
     api_key.total_requests += 1
     api_key.last_used_at = datetime.now(timezone.utc)
 
+    # Build a friendly acknowledgment message
+    short_prompt = body.prompt[:80] + "…" if len(body.prompt) > 80 else body.prompt
+    ack_message = (
+        f"¡Aquí está tu imagen! La generé a partir de: \"{short_prompt}\". "
+        f"Modelo usado: {result.model}. "
+        f"Tiempo de generación: {latency_ms / 1000:.1f}s."
+    )
+
     _log(db, api_key, ip, result.model, result.provider, "success", 200, latency_ms, None, failover_count)
     return {
         "success": True,
+        "message": ack_message,
         "url": result.url,
         "base64": result.base64,
         "model": result.model,

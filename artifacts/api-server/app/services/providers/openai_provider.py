@@ -64,19 +64,42 @@ class OpenAIProvider(BaseProvider):
     ) -> ImageResult:
         start = time.time()
         client = self._get_client()
-        # OpenAI SDK v2+ uses gpt-image-1 (replaces dall-e-3).
-        # response_format is no longer a parameter; output_format handles encoding.
-        kwargs: dict = dict(model="gpt-image-1", prompt=prompt, size=size, n=1)
-        if response_format == "b64_json":
-            kwargs["output_format"] = "png"  # gpt-image-1 returns base64 PNG
-        response = await client.images.generate(**kwargs)
-        latency_ms = int((time.time() - start) * 1000)
-        img = response.data[0]
-        self.mark_success()
-        return ImageResult(
-            url=getattr(img, "url", None),
-            base64=getattr(img, "b64_json", None),
-            model="gpt-image-1",
-            provider=self.provider_id,
-            latency_ms=latency_ms,
-        )
+
+        # Normalize size — dall-e-3 only accepts these three values.
+        valid_sizes = {"1024x1024", "1024x1792", "1792x1024"}
+        if size not in valid_sizes:
+            size = "1024x1024"
+
+        # Try dall-e-3 first (broadly available), fall back to dall-e-2.
+        for model in ("dall-e-3", "dall-e-2"):
+            try:
+                kwargs: dict = dict(
+                    model=model,
+                    prompt=prompt,
+                    n=1,
+                    size=size,
+                    response_format=response_format,  # "url" or "b64_json"
+                )
+                # dall-e-2 doesn't support 1024x1792 / 1792x1024
+                if model == "dall-e-2" and size != "1024x1024":
+                    kwargs["size"] = "1024x1024"
+                response = await client.images.generate(**kwargs)
+                latency_ms = int((time.time() - start) * 1000)
+                img = response.data[0]
+                self.mark_success()
+                return ImageResult(
+                    url=getattr(img, "url", None),
+                    base64=getattr(img, "b64_json", None),
+                    model=model,
+                    provider=self.provider_id,
+                    latency_ms=latency_ms,
+                )
+            except Exception as e:
+                err_str = str(e).lower()
+                # Only fall back on quota/access errors, not prompt errors
+                if model == "dall-e-3" and any(
+                    k in err_str for k in ("billing", "quota", "limit", "access", "permission", "not supported", "maximum")
+                ):
+                    continue
+                raise
+        raise RuntimeError("Image generation failed on all available models")

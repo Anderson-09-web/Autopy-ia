@@ -1,0 +1,100 @@
+################################################################################
+# Autopy AI — Render Deployment Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# This file deploys two services:
+#   1. autopy-api   — Python FastAPI backend (Web Service)
+#   2. autopy-web   — React frontend (Static Site)
+#
+# How to use:
+#   1. Push this repo to GitHub.
+#   2. In Render → New → Blueprint → select your repo.
+#   3. Render will create both services automatically.
+#   4. Add the required environment variables listed below.
+################################################################################
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. Python FastAPI backend
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: autopy-api
+    runtime: python
+    region: oregon            # change to your preferred region
+    plan: free                # upgrade to "starter" for production
+
+    rootDir: artifacts/api-server
+
+    buildCommand: pip install -r requirements.txt
+
+    startCommand: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port $PORT
+      --workers 2
+
+    healthCheckPath: /api/healthz
+
+    envVars:
+      # ── Required secrets (set these in the Render dashboard) ──────────────
+      - key: OPENAI_API_KEY
+        sync: false           # mark as secret; you set the value in the dashboard
+
+      - key: GROQ_API_KEY
+        sync: false
+
+      - key: ADMIN_KEY
+        sync: false           # strong random string, e.g. openssl rand -hex 32
+
+      # ── Database (created by the databases block below) ───────────────────
+      - key: DATABASE_URL
+        fromDatabase:
+          name: autopy-db
+          property: connectionString
+
+      # ── Optional ──────────────────────────────────────────────────────────
+      # - key: REDIS_URL
+      #   sync: false         # paste your Redis URL if you have one
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. React frontend — built as a static site
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: autopy-web
+    runtime: static
+    region: oregon
+
+    rootDir: .                # build from monorepo root (needs pnpm)
+
+    buildCommand: |
+      npm install -g pnpm
+      pnpm install
+      pnpm --filter @workspace/web run build
+
+    staticPublishPath: artifacts/web/dist/public
+
+    # All routes → index.html (client-side routing)
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+    envVars:
+      # ── Point the frontend at the API service ─────────────────────────────
+      # Replace the placeholder with your actual autopy-api Render URL after
+      # the first deploy, e.g. https://autopy-api.onrender.com
+      - key: VITE_API_URL
+        value: https://autopy-api.onrender.com   # ← update this
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Managed PostgreSQL database
+# ──────────────────────────────────────────────────────────────────────────────
+databases:
+  - name: autopy-db
+    region: oregon
+    plan: free                # upgrade to "basic" for production (persistent storage)

@@ -3,12 +3,20 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { Layout } from '@/components/layout';
+import { setBaseUrl } from '@workspace/api-client-react';
 
 import Landing from '@/pages/landing';
 import Playground from '@/pages/playground';
 import Docs from '@/pages/docs';
 import Dashboard from '@/pages/dashboard';
 import Status from '@/pages/status';
+
+// In production (Render static site), the frontend is served separately from
+// the API.  Set VITE_API_URL at build time to point at the API service URL.
+// In development, Vite proxies /api/* to localhost:8080, so no base URL needed.
+if (import.meta.env.VITE_API_URL) {
+  setBaseUrl(import.meta.env.VITE_API_URL);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

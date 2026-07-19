@@ -11,6 +11,7 @@ class ImageRequest(BaseModel):
 
 class ImageResponse(BaseModel):
     success: bool = True
+    message: str = ""          # friendly acknowledgment message
     url: str | None = None
     base64: str | None = None
     model: str
