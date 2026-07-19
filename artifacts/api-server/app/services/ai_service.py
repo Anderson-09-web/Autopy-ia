@@ -79,8 +79,8 @@ _MODEL_REGISTRY: list[dict] = [
         "supports_images": False,
     },
     {
-        "id": "dall-e-3",
-        "name": "DALL-E 3",
+        "id": "gpt-image-1",
+        "name": "GPT Image 1",
         "provider": "openai",
         "speed": "medium",
         "status": "active",

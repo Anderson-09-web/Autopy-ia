@@ -59,20 +59,19 @@ class OpenAIProvider(BaseProvider):
     ) -> ImageResult:
         start = time.time()
         client = self._get_client()
-        response = await client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size=size,
-            response_format=response_format,
-            n=1,
-        )
+        # OpenAI SDK v2+ uses gpt-image-1 (replaces dall-e-3).
+        # response_format is no longer a parameter; output_format handles encoding.
+        kwargs: dict = dict(model="gpt-image-1", prompt=prompt, size=size, n=1)
+        if response_format == "b64_json":
+            kwargs["output_format"] = "png"  # gpt-image-1 returns base64 PNG
+        response = await client.images.generate(**kwargs)
         latency_ms = int((time.time() - start) * 1000)
         img = response.data[0]
         self.mark_success()
         return ImageResult(
-            url=img.url if response_format == "url" else None,
-            base64=img.b64_json if response_format == "b64_json" else None,
-            model="dall-e-3",
+            url=getattr(img, "url", None),
+            base64=getattr(img, "b64_json", None),
+            model="gpt-image-1",
             provider=self.provider_id,
             latency_ms=latency_ms,
         )
