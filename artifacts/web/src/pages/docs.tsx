@@ -165,7 +165,7 @@ function Sidebar({ active }: { active: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const BASE = "https://tu-dominio.replit.app";
+const BASE = "https://autopy-ia.onrender.com";
 
 export default function Docs() {
   const { toast } = useToast();
