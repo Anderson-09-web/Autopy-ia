@@ -70,6 +70,21 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    proxy: {
+      // Forward /v1/* and /openai/* directly to the API server.
+      // Discord bots and OpenAI-compatible clients call these paths
+      // without the /api prefix — the proxy rewrites them transparently.
+      '/v1': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => `/api${path}`,
+      },
+      '/openai': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => `/api${path}`,
+      },
+    },
   },
   preview: {
     port,
