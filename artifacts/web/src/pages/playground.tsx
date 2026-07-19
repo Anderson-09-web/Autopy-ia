@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, startTransition } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useAuth, getCustomFetchOptions } from "@/lib/auth";
 import { useCreateChatCompletion, useGenerateImage, useListModels } from "@workspace/api-client-react";
 import type { ChatMessage } from "@workspace/api-client-react";
@@ -117,11 +118,13 @@ export default function Playground() {
 
       {/* Panel — only ONE child rendered at a time → no orphan portals */}
       <div className="flex-1 border border-white/5 rounded-xl bg-card/40 backdrop-blur flex overflow-hidden min-h-[500px]">
-        {tab === "chat" ? (
-          <ChatInterface apiKey={apiKey} />
-        ) : (
-          <ImageInterface apiKey={apiKey} />
-        )}
+        <ErrorBoundary key={tab}>
+          {tab === "chat" ? (
+            <ChatInterface apiKey={apiKey} />
+          ) : (
+            <ImageInterface apiKey={apiKey} />
+          )}
+        </ErrorBoundary>
       </div>
     </div>
   );

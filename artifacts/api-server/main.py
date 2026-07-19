@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.database import init_db
-from app.routers import health, chat, images, status, models, discord
-from app.routers.admin import keys, dashboard, logs, models_admin, verify
+from app.routers import health, chat, images, status, models, discord, user
+from app.routers.admin import keys, dashboard, logs, models_admin, verify, extra
 
 
 @asynccontextmanager
@@ -83,6 +83,7 @@ app.include_router(chat.router, prefix=API, tags=["chat"])
 app.include_router(images.router, prefix=API, tags=["images"])
 app.include_router(status.router, prefix=API, tags=["status"])
 app.include_router(discord.router, prefix=API, tags=["discord"])
+app.include_router(user.router, prefix=API, tags=["user"])
 
 # Admin routes
 app.include_router(verify.router, prefix=ADMIN, tags=["admin"])
@@ -90,3 +91,4 @@ app.include_router(keys.router, prefix=ADMIN, tags=["admin"])
 app.include_router(dashboard.router, prefix=ADMIN, tags=["admin"])
 app.include_router(logs.router, prefix=ADMIN, tags=["admin"])
 app.include_router(models_admin.router, prefix=ADMIN, tags=["admin"])
+app.include_router(extra.router, prefix=ADMIN, tags=["admin"])

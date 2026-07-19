@@ -18,7 +18,12 @@ class OpenAIProvider(BaseProvider):
     def _get_client(self):
         if self._client is None:
             from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(api_key=self.api_key)
+            # Force base_url so env vars like OPENAI_BASE_URL can't redirect
+            # requests to a wrong host (e.g. a Replit dev-domain proxy).
+            self._client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url="https://api.openai.com/v1",
+            )
         return self._client
 
     async def chat(
