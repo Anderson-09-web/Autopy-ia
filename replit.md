@@ -4,7 +4,8 @@ A unified AI platform that routes developer requests through multiple AI models 
 
 ## Run & Operate
 
-- `bash /home/runner/workspace/artifacts/api-server/start.sh` — run the Python FastAPI server (port 8080, proxied at `/api`)
+- `bash /home/runner/workspace/artifacts/api-server/start.sh` — run the Python FastAPI server (port 8080, proxied at `/api`); workflow: `artifacts/api-server: API Server`
+- `PORT=22333 BASE_PATH=/ pnpm --filter @workspace/web run dev` — run the React web frontend; workflow: `artifacts/web: web`
 - `pnpm --filter @workspace/web run dev` — run the React web frontend (port dynamic, proxied at `/`)
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks from OpenAPI spec
 
@@ -66,5 +67,6 @@ _Populate as you build._
 ## Gotchas
 
 - The workflow for the API server uses an **absolute path** (`bash /home/runner/workspace/artifacts/api-server/start.sh`) because the workflow runner does not set CWD to the workspace root.
-- Python packages are installed into `.pythonlibs/` — use `/home/runner/workspace/.pythonlibs/bin/python3` to reference Python explicitly if running from shell.
-- `pip3` is not in PATH by default; the start.sh handles package installation automatically on each start.
+- Python packages are installed into `.venv/` (a `uv` virtualenv at `/home/runner/workspace/.venv`). The Nix Python interpreter is immutable, so `--system` installs are blocked; always use the venv. Reference Python with `/home/runner/workspace/.venv/bin/python3`.
+- `start.sh` creates/updates the venv automatically on each run via `uv pip install --python`.
+- The web workflow must receive `PORT=22333 BASE_PATH=/` inline — these are not injected automatically since the workflow was manually configured rather than managed by artifact.toml.
