@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, ChevronRight } from "lucide-react";
+import { Copy, Check, ChevronRight, Download, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -137,6 +137,7 @@ const NAV = [
     { href: "#sdk-python",  label: "Python" },
     { href: "#sdk-node",    label: "Node.js / TypeScript" },
     { href: "#sdk-discord", label: "Discord Bot" },
+    { href: "#cog-python",  label: "📦 Cog Python (descarga)" },
   ]},
 ];
 
@@ -165,7 +166,7 @@ function Sidebar({ active }: { active: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const BASE = "https://autopy-ia.onrender.com";
+const BASE = "https://autopy-ia-6a0f.onrender.com";
 
 export default function Docs() {
   const { toast } = useToast();
@@ -667,6 +668,88 @@ bot.run("TU_DISCORD_TOKEN")`} />
             <p className="text-xs text-muted-foreground">
               También puedes usar <code className="text-primary">POST /api/v1/discord/chat</code> que devuelve el JSON de embeds
               listo para pasar directamente a <code className="text-primary">channel.send(embeds=data["embeds"])</code>.
+            </p>
+          </div>
+
+          <SectionDivider />
+
+          {/* ── Cog Python descargable ── */}
+          <h3 id="cog-python" className="text-xl font-semibold scroll-mt-20 flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" /> Cog Python — Archivo listo para usar
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1 mb-5">
+            Descarga el cog oficial de Autopy AI para <strong>discord.py</strong>. Solo necesitas editar tu API key
+            y cargarlo en tu bot — nada más.
+          </p>
+
+          {/* Download card */}
+          <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-6 mb-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                  <Bot className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">autopy_discord_cog.py</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Cog completo con comandos <code className="text-primary">/setia</code>,{" "}
+                    <code className="text-primary">/ia</code> y{" "}
+                    <code className="text-primary">/iamodelo</code> · Historial por canal ·
+                    Webhooks · Failover automático
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/autopy_discord_cog.py"
+                download="autopy_discord_cog.py"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+              >
+                <Download className="h-4 w-4" /> Descargar
+              </a>
+            </div>
+
+            <div className="mt-5 grid sm:grid-cols-3 gap-3">
+              {[
+                { icon: "🔗", title: "/setia", desc: "Panel de control con botones para configurar canal, webhook e identidad de la IA." },
+                { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA en cualquier canal. Responde con proveedor y latencia." },
+                { icon: "🎛️", title: "/iamodelo nombre", desc: "Cambia el modelo de IA del canal (auto, llama-3.3-70b, gemini-2.0-flash…)." },
+              ].map((f) => (
+                <div key={f.title} className="p-3 rounded-lg bg-black/20 border border-white/5">
+                  <p className="text-sm font-mono font-semibold mb-1">{f.icon} {f.title}</p>
+                  <p className="text-xs text-muted-foreground">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick start */}
+          <p className="text-sm font-medium mb-2">Inicio rápido</p>
+          <CodeBlock language="bash" code={`pip install discord.py aiohttp`} />
+          <CodeBlock language="python" code={`# En tu archivo principal del bot:
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+async def main():
+    await bot.load_extension("autopy_discord_cog")  # carga el cog
+    await bot.start("TU_DISCORD_TOKEN")
+
+import asyncio
+asyncio.run(main())`} />
+
+          <CodeBlock language="python" code={`# Dentro del cog, edita estas dos líneas:
+AUTOPY_API_KEY  = "apt_..."                                      # Tu API key
+AUTOPY_BASE_URL = "${BASE}/api/v1"  # URL ya correcta`} />
+
+          <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5">
+            <p className="text-sm font-medium mb-1 text-blue-400">ℹ️ Cómo obtener una API key</p>
+            <p className="text-xs text-muted-foreground">
+              Ve al <a href="/dashboard" className="text-primary underline hover:text-white transition-colors">Dashboard</a>,
+              inicia sesión con tu cuenta admin y crea una nueva API key. Copia el valor <code className="text-primary">apt_…</code> y
+              pégalo en la variable <code className="text-primary">AUTOPY_API_KEY</code> del cog.
             </p>
           </div>
 
