@@ -14,7 +14,7 @@ import {
   Clock, Cpu, Terminal, Eye, EyeOff, AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import autopyLogo from "@/assets/autopy-logo.png";
+import autopyLogo from "@/assets/autopy-logo.jpeg";
 
 // ─── API Key gate ─────────────────────────────────────────────────────────────
 

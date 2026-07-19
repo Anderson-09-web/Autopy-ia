@@ -20,7 +20,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Copy, Plus, Trash2, ArrowRightLeft, AlertTriangle, CheckCircle2, ShieldCheck, LogOut, Eye, EyeOff, Key, List, Cpu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import autopyLogo from "@/assets/autopy-logo.png";
+import autopyLogo from "@/assets/autopy-logo.jpeg";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

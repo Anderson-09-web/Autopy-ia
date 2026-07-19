@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Terminal, LayoutDashboard, FileText, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/error-boundary";
-import autopyLogo from "@/assets/autopy-logo.png";
+import autopyLogo from "@/assets/autopy-logo.jpeg";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();

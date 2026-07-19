@@ -2,6 +2,8 @@
 
 Frontend + Backend en un único servicio. Base de datos Neon (externa).
 
+**URL de producción:** https://autopy-ia.onrender.com
+
 ---
 
 ## Resumen de lo que vas a crear
@@ -48,7 +50,7 @@ Ve a [render.com](https://render.com) → **New +** → **Web Service**
 
 | Campo | Valor exacto |
 |---|---|
-| **Name** | `autopy-ai` (o el que quieras) |
+| **Name** | `autopy-ia` |
 | **Region** | Oregon (o la más cercana) |
 | **Runtime** | `Python 3` |
 | **Root Directory** | *(dejar vacío)* |
@@ -59,16 +61,10 @@ Ve a [render.com](https://render.com) → **New +** → **Web Service**
 ### 🔨 Build Command
 
 ```
-bash render-build.sh
+npx --yes pnpm@9 install --no-frozen-lockfile && BASE_PATH=/ npx pnpm@9 --filter @workspace/web run build && pip install -r artifacts/api-server/requirements.txt
 ```
 
-> **¿Por qué un script?** Render tiene `/usr/lib/node_modules` como read-only, así que `npm install -g pnpm` falla con `EROFS`. El script instala pnpm en `$HOME/.npm-global` (escribible) y luego construye todo.
-
-Lo que hace el script, en orden:
-1. Instala pnpm en directorio local (`$HOME/.npm-global`)
-2. Instala dependencias Node del monorepo
-3. Construye el frontend React (genera `artifacts/web/dist/public/`)
-4. Instala dependencias Python del backend
+> **¿Por qué `npx pnpm`?** Render tiene `/usr/lib/node_modules` como read-only, así que `npm install -g pnpm` falla con `EROFS`. Usando `npx` se descarga pnpm al caché temporal sin necesitar permisos de escritura global.
 
 ---
 
@@ -110,54 +106,50 @@ El primer deploy tarda ~4-5 minutos porque instala Node, pnpm, Python y construy
 
 ## PASO 3 — Verificar que funciona
 
-Una vez desplegado, tu URL será algo como `https://autopy-ai.onrender.com`.
+Una vez desplegado, la app estará en: **https://autopy-ia.onrender.com**
 
 | Verificación | URL | Resultado esperado |
 |---|---|---|
-| Backend OK | `/api/healthz` | `{"status":"ok"}` |
-| Modelos activos | `/api/v1/status` | JSON con modelos |
-| Frontend | `/` | Carga la app |
-| Docs API | `/api/docs` | Swagger UI |
+| Backend OK | https://autopy-ia.onrender.com/api/healthz | `{"status":"ok"}` |
+| Modelos activos | https://autopy-ia.onrender.com/api/v1/status | JSON con modelos |
+| Frontend | https://autopy-ia.onrender.com | Carga la app |
+| Docs API | https://autopy-ia.onrender.com/api/docs | Swagger UI |
 
 ---
 
 ## 📋 Resumen visual de todos los campos
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              RENDER — NEW WEB SERVICE               │
-├──────────────────────┬──────────────────────────────┤
-│ Name                 │ autopy-ai                    │
-│ Runtime              │ Python 3                     │
-│ Branch               │ main                         │
-│ Root Directory       │ (vacío)                      │
-│ Build Command        │ npm install -g pnpm@latest   │
-│                      │ && pnpm install              │
-│                      │ && BASE_PATH=/ pnpm          │
-│                      │ --filter @workspace/web      │
-│                      │ run build                    │
-│                      │ && pip install -r            │
-│                      │ artifacts/api-server/        │
-│                      │ requirements.txt             │
-│ Start Command        │ cd artifacts/api-server      │
-│                      │ && uvicorn main:app          │
-│                      │ --host 0.0.0.0               │
-│                      │ --port $PORT                 │
-│                      │ --workers 2                  │
-│ Health Check Path    │ /api/healthz                 │
-├──────────────────────┼──────────────────────────────┤
-│ DATABASE_URL         │ tu Neon connection string    │
-│ OPENAI_API_KEY       │ sk-...                       │
-│ GROQ_API_KEY         │ gsk_...                      │
-│ ADMIN_KEY            │ string aleatorio seguro      │
-└──────────────────────┴──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                  RENDER — NEW WEB SERVICE                       │
+├──────────────────────┬──────────────────────────────────────────┤
+│ Name                 │ autopy-ia                                │
+│ Runtime              │ Python 3                                 │
+│ Branch               │ main                                     │
+│ Root Directory       │ (vacío)                                  │
+│ Build Command        │ npx --yes pnpm@9 install                 │
+│                      │ --no-frozen-lockfile &&                  │
+│                      │ BASE_PATH=/ npx pnpm@9                   │
+│                      │ --filter @workspace/web run build &&     │
+│                      │ pip install -r                           │
+│                      │ artifacts/api-server/requirements.txt    │
+│ Start Command        │ cd artifacts/api-server &&               │
+│                      │ uvicorn main:app --host 0.0.0.0          │
+│                      │ --port $PORT --workers 2                 │
+│ Health Check Path    │ /api/healthz                             │
+├──────────────────────┼──────────────────────────────────────────┤
+│ DATABASE_URL         │ tu Neon connection string                │
+│ OPENAI_API_KEY       │ sk-...                                   │
+│ GROQ_API_KEY         │ gsk_...                                  │
+│ ADMIN_KEY            │ string aleatorio seguro                  │
+└──────────────────────┴──────────────────────────────────────────┘
 ```
 
 ---
 
 ## 🔄 Deploys automáticos
 
-Cada `git push` a `main` lanza un nuevo deploy automáticamente.
+Cada `git push` a `main` lanza un nuevo deploy automáticamente en https://autopy-ia.onrender.com
 
 ---
 
@@ -175,6 +167,9 @@ Cada `git push` a `main` lanza un nuevo deploy automáticamente.
 ---
 
 ## 🛠️ Solución de problemas
+
+### Build falla con EROFS
+→ Asegúrate de usar exactamente el Build Command de arriba (con `npx --yes pnpm@9`)
 
 ### Build falla en `pnpm install`
 → Verifica que el `Root Directory` esté **vacío** (no pongas `artifacts/api-server`)

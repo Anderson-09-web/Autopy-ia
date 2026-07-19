@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Terminal, Zap, Shield, GitMerge } from "lucide-react";
-import autopyLogo from "@/assets/autopy-logo.png";
+import autopyLogo from "@/assets/autopy-logo.jpeg";
 
 export default function Landing() {
   return (
