@@ -1,36 +1,828 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
-  title: Api
-  version: 0.1.0
-  description: API specification
+  title: api
+  version: 1.0.0
+  description: Autopy AI - Unified AI Platform API
+
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
       summary: Health check
-      description: Returns server health status
+      tags: [health]
       responses:
-        "200":
-          description: Healthy
+        '200':
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                $ref: '#/components/schemas/HealthStatus'
+
+  /v1/models:
+    get:
+      operationId: listModels
+      summary: List all available AI models
+      tags: [models]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/chat:
+    post:
+      operationId: createChatCompletion
+      summary: Generate a chat completion
+      tags: [chat]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Content moderation block
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/images:
+    post:
+      operationId: generateImage
+      summary: Generate an image
+      tags: [images]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageRequest'
+      responses:
+        '200':
+          description: Generated image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Content moderation block
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/status:
+    get:
+      operationId: getSystemStatus
+      summary: Get system status including model health and metrics
+      tags: [status]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /v1/discord/chat:
+    post:
+      operationId: discordChat
+      summary: Discord-formatted chat completion
+      tags: [discord]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Discord embed response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscordResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/keys:
+    get:
+      operationId: listApiKeys
+      summary: List all API keys
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeysListResponse'
+    post:
+      operationId: createApiKey
+      summary: Create a new API key
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: Created API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+
+  /admin/keys/{keyId}:
+    get:
+      operationId: getApiKey
+      summary: Get API key details
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      parameters:
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+    patch:
+      operationId: updateApiKey
+      summary: Update API key
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      parameters:
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApiKeyRequest'
+      responses:
+        '200':
+          description: Updated API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+    delete:
+      operationId: deleteApiKey
+      summary: Delete an API key
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      parameters:
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /admin/dashboard:
+    get:
+      operationId: getDashboardStats
+      summary: Get dashboard statistics
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      responses:
+        '200':
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStats'
+
+  /admin/logs:
+    get:
+      operationId: getRequestLogs
+      summary: Get request logs
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: model
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [success, error, blocked]
+      responses:
+        '200':
+          description: Request logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsListResponse'
+
+  /admin/models:
+    get:
+      operationId: adminListModels
+      summary: Get all models with admin details
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      responses:
+        '200':
+          description: Models list with status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminModelsResponse'
+    patch:
+      operationId: updateModelStatus
+      summary: Update model status
+      tags: [admin]
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModelRequest'
+      responses:
+        '200':
+          description: Updated model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInfo'
+
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+    AdminAuth:
+      type: apiKey
+      in: header
+      name: X-Admin-Key
+
   schemas:
     HealthStatus:
       type: object
+      required: [status, timestamp]
       properties:
         status:
           type: string
-      required:
-        - status
+          enum: [ok, degraded]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
 
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+        code:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ModelInfo:
+      type: object
+      required: [id, name, provider, speed, status, priority]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [openai, groq, anthropic]
+        speed:
+          type: string
+          enum: [fast, medium, slow]
+        status:
+          type: string
+          enum: [active, degraded, down]
+        priority:
+          type: integer
+        maxTokens:
+          type: integer
+        supportsImages:
+          type: boolean
+        latencyMs:
+          type: integer
+          nullable: true
+
+    ModelsResponse:
+      type: object
+      required: [success, models]
+      properties:
+        success:
+          type: boolean
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelInfo'
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+        content:
+          type: string
+
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        model:
+          type: string
+        maxTokens:
+          type: integer
+          default: 1024
+        temperature:
+          type: number
+          default: 0.7
+        stream:
+          type: boolean
+          default: false
+
+    ChatResponse:
+      type: object
+      required: [success, text, model, provider]
+      properties:
+        success:
+          type: boolean
+        text:
+          type: string
+        model:
+          type: string
+        provider:
+          type: string
+        tokensUsed:
+          type: integer
+        latencyMs:
+          type: integer
+        cached:
+          type: boolean
+        failoverCount:
+          type: integer
+
+    ImageRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ['256x256', '512x512', '1024x1024', '1792x1024', '1024x1792']
+          default: '1024x1024'
+        format:
+          type: string
+          enum: [url, base64]
+          default: url
+        model:
+          type: string
+
+    ImageResponse:
+      type: object
+      required: [success, url]
+      properties:
+        success:
+          type: boolean
+        url:
+          type: string
+          nullable: true
+        base64:
+          type: string
+          nullable: true
+        model:
+          type: string
+        provider:
+          type: string
+        latencyMs:
+          type: integer
+
+    SystemStatus:
+      type: object
+      required: [success, modelsActive, modelsDown, uptime]
+      properties:
+        success:
+          type: boolean
+        modelsActive:
+          type: integer
+        modelsDown:
+          type: integer
+        totalRequests:
+          type: integer
+        requestsToday:
+          type: integer
+        avgLatencyMs:
+          type: number
+        uptime:
+          type: number
+        ramUsageMb:
+          type: number
+        cpuPercent:
+          type: number
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelInfo'
+        cacheHitRate:
+          type: number
+        version:
+          type: string
+
+    DiscordEmbed:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        color:
+          type: integer
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
+              inline:
+                type: boolean
+        footer:
+          type: object
+          properties:
+            text:
+              type: string
+        timestamp:
+          type: string
+
+    DiscordResponse:
+      type: object
+      required: [embeds]
+      properties:
+        embeds:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscordEmbed'
+
+    ApiKey:
+      type: object
+      required: [id, key, name, status, createdAt]
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, revoked]
+        rateLimit:
+          type: integer
+          description: Requests per minute
+        totalRequests:
+          type: integer
+        tokensUsed:
+          type: integer
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        rateLimit:
+          type: integer
+          default: 100
+          description: Requests per minute (0 = unlimited)
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    UpdateApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, revoked]
+        rateLimit:
+          type: integer
+
+    ApiKeysListResponse:
+      type: object
+      required: [success, keys, total, page, limit]
+      properties:
+        success:
+          type: boolean
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKey'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    RequestLog:
+      type: object
+      required: [id, createdAt, endpoint, status]
+      properties:
+        id:
+          type: string
+        apiKeyId:
+          type: string
+          nullable: true
+        apiKeyName:
+          type: string
+          nullable: true
+        ip:
+          type: string
+        endpoint:
+          type: string
+        method:
+          type: string
+        model:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [success, error, blocked]
+        statusCode:
+          type: integer
+        latencyMs:
+          type: integer
+        tokensUsed:
+          type: integer
+          nullable: true
+        failoverCount:
+          type: integer
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    LogsListResponse:
+      type: object
+      required: [success, logs, total, page, limit]
+      properties:
+        success:
+          type: boolean
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestLog'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    DashboardStats:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        totalRequests:
+          type: integer
+        requestsToday:
+          type: integer
+        requestsThisWeek:
+          type: integer
+        totalTokens:
+          type: integer
+        tokensToday:
+          type: integer
+        activeApiKeys:
+          type: integer
+        totalApiKeys:
+          type: integer
+        avgLatencyMs:
+          type: number
+        errorRate:
+          type: number
+        cacheHitRate:
+          type: number
+        modelsActive:
+          type: integer
+        modelsDown:
+          type: integer
+        topModels:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              requests:
+                type: integer
+              tokens:
+                type: integer
+        requestsOverTime:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              requests:
+                type: integer
+              tokens:
+                type: integer
+        errorsByType:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              count:
+                type: integer
+
+    AdminModelsResponse:
+      type: object
+      required: [success, models]
+      properties:
+        success:
+          type: boolean
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelInfo'
+
+    UpdateModelRequest:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [active, degraded, down]
+        priority:
+          type: integer

@@ -1,0 +1,495 @@
+import { useState, useRef, useEffect, startTransition } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { useAuth, getCustomFetchOptions } from "@/lib/auth";
+import { useCreateChatCompletion, useGenerateImage, useListModels } from "@workspace/api-client-react";
+import type { ChatMessage } from "@workspace/api-client-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Send, Settings, Sparkles, Image as ImageIcon, MessageSquare,
+  Clock, Cpu, Terminal, Eye, EyeOff, AlertCircle, Download, RotateCcw,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import autopyLogo from "@/assets/autopy-logo.jpeg";
+
+// ─── API Key gate ─────────────────────────────────────────────────────────────
+
+function ApiKeyGate({ onSave }: { onSave: (key: string) => void }) {
+  const [value, setValue] = useState("");
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="w-full max-w-sm space-y-8 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <img src={autopyLogo} alt="Autopy AI" className="h-14 w-14 object-contain drop-shadow-[0_0_16px_rgba(124,58,237,0.5)]" />
+          <div>
+            <h2 className="text-2xl font-bold">Playground</h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Ingresa una API key <span className="font-mono text-primary">apt_…</span> para empezar.
+              Créala en el <a href="/dashboard" className="underline hover:text-white transition-colors">Dashboard</a>.
+            </p>
+          </div>
+        </div>
+        <Card className="glass border-white/10 text-left">
+          <CardContent className="pt-5 space-y-3">
+            <label className="text-sm font-medium text-muted-foreground">API Key</label>
+            <div className="relative">
+              <Input
+                type={show ? "text" : "password"}
+                placeholder="apt_..."
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && value.trim() && onSave(value.trim())}
+                className="bg-black/40 border-white/10 pr-10 font-mono"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShow(!show)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!value.trim()}
+              onClick={() => onSave(value.trim())}
+            >
+              Acceder al Playground
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Playground shell ─────────────────────────────────────────────────────────
+type Tab = "chat" | "image";
+
+export default function Playground() {
+  const { apiKey, setApiKey } = useAuth();
+  const [tab, setTab] = useState<Tab>("chat");
+
+  if (!apiKey) return <ApiKeyGate onSave={setApiKey} />;
+
+  return (
+    <div className="flex-1 flex flex-col p-6 gap-6 max-w-7xl mx-auto w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Playground</h1>
+          <p className="text-muted-foreground text-sm">Prueba modelos y prompts de forma interactiva.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => startTransition(() => setApiKey(""))} className="border-white/10">
+          <Settings className="h-4 w-4 mr-2" /> Cambiar key
+        </Button>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 rounded-lg bg-black/40 border border-white/5 w-fit">
+        <button
+          onClick={() => setTab("chat")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            tab === "chat" ? "bg-primary/20 text-white" : "text-muted-foreground hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" /> Chat
+        </button>
+        <button
+          onClick={() => setTab("image")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            tab === "image" ? "bg-primary/20 text-white" : "text-muted-foreground hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <ImageIcon className="h-4 w-4" /> Imágenes
+        </button>
+      </div>
+
+      {/* Panel */}
+      <div className="flex-1 border border-white/5 rounded-xl bg-card/40 backdrop-blur flex overflow-hidden min-h-[500px]">
+        <ErrorBoundary key={tab}>
+          {tab === "chat" ? (
+            <ChatInterface apiKey={apiKey} />
+          ) : (
+            <ImageInterface apiKey={apiKey} />
+          )}
+        </ErrorBoundary>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+function ChatInterface({ apiKey }: { apiKey: string }) {
+  const fetchOpts = getCustomFetchOptions({ apiKey });
+  const { data: modelsData } = useListModels({ request: fetchOpts });
+  const chatModels = modelsData?.models?.filter((m) => !m.supportsImages) ?? [];
+
+  const [model, setModel] = useState("auto");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: "system", content: "You are a helpful AI assistant." },
+  ]);
+  const [input, setInput] = useState("");
+  const [meta, setMeta] = useState<{
+    latencyMs?: number; tokensUsed?: number; provider?: string;
+    model?: string; cached?: boolean; failoverCount?: number;
+  } | null>(null);
+
+  const { toast } = useToast();
+  const createChat = useCreateChatCompletion({ request: fetchOpts });
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, createChat.isPending]);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const text = input.trim();
+    if (!text || createChat.isPending) return;
+
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+
+    createChat.mutate(
+      { data: { messages: updated, model: model !== "auto" ? model : undefined } },
+      {
+        onSuccess: (res) => {
+          setMessages([...updated, { role: "assistant", content: res.text ?? "" }]);
+          setMeta({
+            latencyMs: res.latencyMs ?? undefined,
+            tokensUsed: res.tokensUsed ?? undefined,
+            provider: res.provider,
+            model: res.model,
+            cached: res.cached ?? false,
+            failoverCount: res.failoverCount ?? 0,
+          });
+        },
+        onError: (err: any) => {
+          const msg =
+            err?.response?.data?.detail?.error ??
+            err?.response?.detail?.error ??
+            err?.message ??
+            "No se pudo obtener respuesta del servidor.";
+          setMessages([...updated, { role: "assistant", content: `⚠️ Error: ${msg}` }]);
+          toast({ title: "Error en la petición", description: msg, variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  const handleClear = () => {
+    setMessages([{ role: "system", content: "You are a helpful AI assistant." }]);
+    setMeta(null);
+  };
+
+  const visibleMessages = messages.filter((m) => m.role !== "system");
+  const systemPrompt = messages.find((m) => m.role === "system")?.content ?? "";
+
+  return (
+    <div className="flex flex-col w-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap p-4 border-b border-white/5 bg-black/20">
+        <Select value={model} onValueChange={setModel}>
+          <SelectTrigger className="w-52 h-8 bg-black/40 border-white/10 text-sm">
+            <SelectValue placeholder="Modelo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">Auto (mejor disponible)</SelectItem>
+            {chatModels.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.name} · {m.provider}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleClear}
+          className="h-8 px-3 text-muted-foreground hover:text-white border border-white/10 text-xs"
+        >
+          <RotateCcw className="h-3 w-3 mr-1" /> Limpiar
+        </Button>
+
+        {meta && (
+          <div className="ml-auto flex items-center gap-3 text-xs font-mono text-muted-foreground flex-wrap">
+            {meta.cached && (
+              <Badge variant="secondary" className="bg-primary/20 text-primary">CACHED</Badge>
+            )}
+            {!!meta.failoverCount && (
+              <Badge variant="destructive">Failovers: {meta.failoverCount}</Badge>
+            )}
+            <span className="flex items-center gap-1">
+              <Cpu className="w-3 h-3" /> {meta.provider} / {meta.model}
+            </span>
+            {meta.latencyMs != null && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" /> {meta.latencyMs}ms
+              </span>
+            )}
+            {meta.tokensUsed != null && (
+              <span className="flex items-center gap-1">
+                <Terminal className="w-3 h-3" /> {meta.tokensUsed} tok
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* System prompt strip */}
+      {systemPrompt && (
+        <div className="px-4 py-2 border-b border-white/5 bg-white/[0.02] flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">System</span>
+          <span className="text-xs text-muted-foreground truncate">{systemPrompt}</span>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
+        {visibleMessages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground gap-2 py-16">
+            <MessageSquare className="h-10 w-10 opacity-20" />
+            <p className="text-sm">Escribe un mensaje para empezar.</p>
+          </div>
+        )}
+        {visibleMessages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div
+              className={`max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                msg.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card border border-white/5 text-card-foreground"
+              }`}
+            >
+              <div className="whitespace-pre-wrap">{msg.content}</div>
+            </div>
+          </div>
+        ))}
+
+        {createChat.isPending && (
+          <div className="flex justify-start">
+            <div className="rounded-xl px-4 py-3 bg-card border border-white/5 flex items-center gap-3">
+              <span className="flex gap-1 items-center shrink-0">
+                {[0, 150, 300].map((d) => (
+                  <span
+                    key={d}
+                    className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: `${d}ms` }}
+                  />
+                ))}
+              </span>
+              <span className="text-sm text-muted-foreground">Generando respuesta...</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-white/5 bg-black/20">
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            placeholder="Escribe un mensaje… (Enter para enviar, Shift+Enter para nueva línea)"
+            className="min-h-[44px] max-h-[180px] resize-none py-3 bg-black/40 border-white/10 focus-visible:ring-primary text-sm"
+            rows={1}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            className="h-[44px] w-[44px] shrink-0 bg-primary hover:bg-primary/90"
+            disabled={!input.trim() || createChat.isPending}
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Image generation ─────────────────────────────────────────────────────────
+
+function ImageInterface({ apiKey }: { apiKey: string }) {
+  const fetchOpts = getCustomFetchOptions({ apiKey });
+  const { data: modelsData } = useListModels({ request: fetchOpts });
+  const imageModels = modelsData?.models?.filter((m) => m.supportsImages) ?? [];
+
+  const [model, setModel] = useState("auto");
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState<{
+    src?: string;      // final displayable URL or data-URL
+    base64?: string;
+    error?: string;
+    latencyMs?: number;
+    provider?: string;
+    model?: string;
+  } | null>(null);
+
+  const { toast } = useToast();
+  const generate = useGenerateImage({ request: fetchOpts });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim() || generate.isPending) return;
+    setResult(null);
+    generate.mutate(
+      { data: { prompt: prompt.trim(), model: model !== "auto" ? model : undefined, size: "1024x1024", format: "url" } },
+      {
+        onSuccess: (res) => {
+          // Handle URL (including data-URLs from Pollinations/Gemini) and plain base64
+          const src =
+            res.url ??
+            (res.base64 ? `data:image/jpeg;base64,${res.base64}` : undefined);
+
+          if (!src) {
+            setResult({ error: "El servidor no devolvió ninguna imagen." });
+            return;
+          }
+
+          setResult({
+            src,
+            base64: res.base64 ?? undefined,
+            latencyMs: res.latencyMs ?? undefined,
+            provider: res.provider,
+            model: res.model,
+          });
+        },
+        onError: (err: any) => {
+          const msg =
+            err?.response?.data?.detail?.error ??
+            err?.response?.detail?.error ??
+            err?.message ??
+            "No se pudo generar la imagen.";
+          setResult({ error: msg });
+          toast({ title: "Error al generar imagen", description: msg, variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  const handleDownload = () => {
+    if (!result?.src) return;
+    const a = document.createElement("a");
+    a.href = result.src;
+    a.download = `autopy-${Date.now()}.jpg`;
+    a.click();
+  };
+
+  return (
+    <div className="flex flex-col w-full p-6 gap-5">
+      {/* Controls */}
+      <div className="flex gap-3 items-center flex-wrap">
+        <Select value={model} onValueChange={setModel}>
+          <SelectTrigger className="w-64 bg-black/40 border-white/10">
+            <SelectValue placeholder="Modelo de imagen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">Auto (mejor disponible)</SelectItem>
+            {imageModels.map((m) => (
+              <SelectItem key={m.id} value={m.id}>{m.name} · {m.provider}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {result?.src && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="border-white/10 text-muted-foreground hover:text-white gap-2"
+          >
+            <Download className="w-4 h-4" /> Descargar
+          </Button>
+        )}
+      </div>
+
+      {/* Prompt */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Describe la imagen que quieres generar…"
+          className="h-12 bg-black/40 border-white/10 text-sm"
+        />
+        <Button
+          type="submit"
+          className="h-12 px-6 bg-primary hover:bg-primary/90 gap-2 shrink-0"
+          disabled={!prompt.trim() || generate.isPending}
+        >
+          <Sparkles className="w-4 h-4" />
+          {generate.isPending ? "Generando…" : "Generar"}
+        </Button>
+      </form>
+
+      {/* Result area */}
+      <div className="flex-1 border border-white/5 bg-black/20 rounded-xl overflow-hidden flex flex-col items-center justify-center p-8 min-h-[300px]">
+        {generate.isPending ? (
+          <div className="flex flex-col items-center gap-4 text-muted-foreground">
+            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <p className="font-mono text-sm animate-pulse">Generando imagen…</p>
+            <p className="text-xs text-muted-foreground/60">Puede tardar 10–30 segundos</p>
+          </div>
+        ) : result?.error ? (
+          <div className="flex flex-col items-center gap-3 text-center max-w-md">
+            <AlertCircle className="h-10 w-10 text-destructive opacity-80" />
+            <p className="font-semibold text-destructive">Error al generar</p>
+            <p className="text-sm text-muted-foreground">{result.error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResult(null)}
+              className="border-white/10 mt-2"
+            >
+              Intentar de nuevo
+            </Button>
+          </div>
+        ) : result?.src ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+            <img
+              src={result.src}
+              alt={prompt}
+              className="max-w-full max-h-[420px] object-contain rounded-lg shadow-2xl"
+            />
+            <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground bg-black/40 px-3 py-1.5 rounded-full border border-white/10">
+              <span className="flex items-center gap-1">
+                <Cpu className="w-3 h-3" /> {result.provider} / {result.model}
+              </span>
+              {result.latencyMs != null && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> {(result.latencyMs / 1000).toFixed(1)}s
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center text-muted-foreground max-w-sm">
+            <ImageIcon className="w-12 h-12 mx-auto mb-4 opacity-20" />
+            <p className="text-sm">Escribe un prompt arriba para generar una imagen.</p>
+            <p className="text-xs mt-2 opacity-50">Usa DALL-E, Gemini o Flux (gratis)</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

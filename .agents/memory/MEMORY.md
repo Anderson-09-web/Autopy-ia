@@ -1,0 +1,1 @@
+- [Autopy AI Python backend](autopy-python-backend.md) — FastAPI server uses a uv venv at ~/.venv; Python must be installed via installProgrammingLanguage, not uv CLI.
