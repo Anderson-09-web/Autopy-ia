@@ -1,22 +1,28 @@
 ################################################################################
-# Autopy AI — Render Blueprint
-# Crea los dos servicios + base de datos con un solo click.
+# Autopy AI — Render (UN SOLO Web Service)
+# Frontend + Backend juntos, base de datos Neon externa.
 # Guía completa: README-RENDER.md
 ################################################################################
 
 services:
-  # ── 1. Backend Python FastAPI ─────────────────────────────────────────────
   - type: web
-    name: autopy-api
+    name: autopy-ai
     runtime: python
     region: oregon
-    plan: free                   # cambia a "starter" en producción real
+    plan: free                   # cambia a "starter" para producción
 
-    rootDir: artifacts/api-server
+    rootDir: .                   # raíz del monorepo
 
-    buildCommand: pip install -r requirements.txt
+    # 1. Instala Node + pnpm, construye el frontend, instala deps de Python
+    buildCommand: |
+      npm install -g pnpm@latest
+      pnpm install
+      BASE_PATH=/ pnpm --filter @workspace/web run build
+      pip install -r artifacts/api-server/requirements.txt
 
+    # 2. Arranca FastAPI (sirve API + archivos estáticos del frontend)
     startCommand: >
+      cd artifacts/api-server &&
       uvicorn main:app
       --host 0.0.0.0
       --port $PORT
@@ -25,58 +31,14 @@ services:
     healthCheckPath: /api/healthz
 
     envVars:
+      - key: DATABASE_URL
+        sync: false          # pega tu Neon URL aquí en el dashboard
+
       - key: OPENAI_API_KEY
-        sync: false              # lo escribes en el dashboard de Render
+        sync: false
 
       - key: GROQ_API_KEY
         sync: false
 
       - key: ADMIN_KEY
-        sync: false
-
-      - key: DATABASE_URL
-        fromDatabase:
-          name: autopy-db
-          property: connectionString
-
-      # Descomenta si tienes Redis:
-      # - key: REDIS_URL
-      #   sync: false
-
-  # ── 2. Frontend React (Static Site) ──────────────────────────────────────
-  - type: web
-    name: autopy-web
-    runtime: static
-    region: oregon
-
-    rootDir: .                   # raíz del monorepo
-
-    buildCommand: |
-      npm install -g pnpm@latest
-      pnpm install
-      pnpm --filter @workspace/web run build
-
-    staticPublishPath: artifacts/web/dist/public
-
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-
-    envVars:
-      # URL del servicio autopy-api que creaste arriba.
-      # La pones en el dashboard DESPUÉS del primer deploy del backend.
-      # Ejemplo: https://autopy-api.onrender.com
-      - key: VITE_API_URL
-        sync: false              # ← valor lo pones en el dashboard, nunca en el código
-
-# ── Base de datos PostgreSQL ──────────────────────────────────────────────────
-databases:
-  - name: autopy-db
-    region: oregon
-    plan: free
+        sync: false          # string aleatorio seguro, ej: openssl rand -hex 32

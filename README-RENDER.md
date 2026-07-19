@@ -1,195 +1,194 @@
-# 🚀 Guía completa de despliegue en Render
+# 🚀 Despliegue en Render — Un solo Web Service
 
-Este proyecto se despliega en **dos servicios** + **una base de datos**:
+Frontend + Backend en un único servicio. Base de datos Neon (externa).
 
-| Servicio | Tipo | URL final |
-|---|---|---|
-| `autopy-api` | Web Service (Python) | `https://autopy-api.onrender.com` |
-| `autopy-web` | Static Site (React) | `https://autopy-web.onrender.com` |
-| `autopy-db` | PostgreSQL | (interna, solo el backend la usa) |
+---
+
+## Resumen de lo que vas a crear
+
+| Qué | Tipo en Render |
+|---|---|
+| Backend (FastAPI) + Frontend (React) | **Web Service** — Python |
+| Base de datos | **Neon** (externa, ya la tienes) |
+
+Un solo servicio sirve todo: las rutas `/api/*` van al backend y el resto carga el frontend React.
 
 ---
 
 ## PASO 1 — Sube el código a GitHub
 
 ```bash
-# Si aún no tienes repositorio en GitHub:
-git init
+# Primera vez:
 git remote add origin https://github.com/TU-USUARIO/autopy-ai.git
 git branch -M main
 git push -u origin main
 
-# Si ya tienes el repo, solo haz push:
+# Actualizaciones posteriores:
 git add -A
-git commit -m "deploy to render"
+git commit -m "mensaje"
 git push
 ```
 
 ---
 
-## PASO 2 — Crear el servicio Backend (autopy-api)
+## PASO 2 — Crear el Web Service en Render
 
 Ve a [render.com](https://render.com) → **New +** → **Web Service**
 
-### Conexión al repo
+### 🔗 Conectar repositorio
+
 | Campo | Valor |
 |---|---|
-| **Repository** | `github.com/TU-USUARIO/autopy-ai` |
+| **Repository** | Tu repo de GitHub |
 | **Branch** | `main` |
 
-### Configuración del servicio
-| Campo | Valor |
+---
+
+### ⚙️ Configuración principal
+
+| Campo | Valor exacto |
 |---|---|
-| **Name** | `autopy-api` |
-| **Region** | Oregon (o la más cercana a tus usuarios) |
+| **Name** | `autopy-ai` (o el que quieras) |
+| **Region** | Oregon (o la más cercana) |
 | **Runtime** | `Python 3` |
-| **Root Directory** | `artifacts/api-server` |
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2` |
+| **Root Directory** | *(dejar vacío)* |
 | **Instance Type** | Free (o Starter $7/mes para producción) |
 
-### Variables de entorno — Backend
-Haz click en **"Add Environment Variable"** y agrega estas una por una:
+---
 
-| Key | Value | Notas |
-|---|---|---|
-| `OPENAI_API_KEY` | `sk-...` | Tu clave de OpenAI |
-| `GROQ_API_KEY` | `gsk_...` | Tu clave de Groq |
-| `ADMIN_KEY` | string aleatorio seguro | Genera uno: `openssl rand -hex 32` |
-| `DATABASE_URL` | *(ver Paso 3)* | Se pega después de crear la DB |
+### 🔨 Build Command
 
-Click **"Create Web Service"** y espera a que el deploy termine (~3 min).
+Copia esto exactamente:
 
-Cuando termine, copia tu URL: `https://autopy-api.onrender.com`
-
-### Verificar que el backend funciona
-Abre en el navegador:
 ```
-https://autopy-api.onrender.com/api/healthz
-```
-Debe devolver:
-```json
-{"status": "ok"}
+npm install -g pnpm@latest && pnpm install && BASE_PATH=/ pnpm --filter @workspace/web run build && pip install -r artifacts/api-server/requirements.txt
 ```
 
----
-
-## PASO 3 — Crear la base de datos (PostgreSQL)
-
-Ve a [render.com](https://render.com) → **New +** → **PostgreSQL**
-
-| Campo | Valor |
-|---|---|
-| **Name** | `autopy-db` |
-| **Region** | `Oregon` (igual que el backend) |
-| **PostgreSQL Version** | `16` |
-| **Instance Type** | Free |
-
-Click **"Create Database"**.
-
-Cuando se cree, ve a la página de la base de datos y copia el valor de **"Internal Database URL"** (empieza con `postgresql://...`).
-
-Ahora ve al servicio `autopy-api` → **Environment** → agrega:
-
-| Key | Value |
-|---|---|
-| `DATABASE_URL` | `postgresql://...` (el Internal URL que copiaste) |
-
-Guarda y el servicio se redesplegará automáticamente.
+Lo que hace, en orden:
+1. Instala pnpm
+2. Instala dependencias Node del monorepo
+3. Construye el frontend React (genera `artifacts/web/dist/public/`)
+4. Instala dependencias Python del backend
 
 ---
 
-## PASO 4 — Crear el servicio Frontend (autopy-web)
+### ▶️ Start Command
 
-Ve a [render.com](https://render.com) → **New +** → **Static Site**
+```
+cd artifacts/api-server && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
+```
 
-### Conexión al repo
-| Campo | Valor |
-|---|---|
-| **Repository** | `github.com/TU-USUARIO/autopy-ai` |
-| **Branch** | `main` |
+---
 
-### Configuración del servicio
-| Campo | Valor |
-|---|---|
-| **Name** | `autopy-web` |
-| **Root Directory** | *(dejar vacío — usa la raíz del repo)* |
-| **Build Command** | `npm install -g pnpm@latest && pnpm install && pnpm --filter @workspace/web run build` |
-| **Publish Directory** | `artifacts/web/dist/public` |
+### 🔑 Variables de entorno
 
-### Variables de entorno — Frontend
-| Key | Value | Notas |
+Haz click en **"Add Environment Variable"** para cada una:
+
+| Key | Value | Obligatoria |
 |---|---|---|
-| `VITE_API_URL` | `https://autopy-api.onrender.com` | URL exacta del backend (sin `/` al final) |
+| `DATABASE_URL` | `postgresql://usuario:pass@ep-xxx.neon.tech/neondb?sslmode=require` | ✅ Sí |
+| `OPENAI_API_KEY` | `sk-...` | ✅ Sí |
+| `GROQ_API_KEY` | `gsk_...` | ✅ Sí |
+| `ADMIN_KEY` | string seguro aleatorio | ✅ Sí |
 
-Click **"Create Static Site"** y espera a que el build termine (~2 min).
+> **Dónde encuentras tu Neon URL:**
+> Ve a [neon.tech](https://neon.tech) → tu proyecto → **Connection Details** → copia la **Connection string** (con `?sslmode=require` al final).
+
+> **Generar ADMIN_KEY seguro:**
+> ```bash
+> openssl rand -hex 32
+> ```
+> O usa cualquier string largo y aleatorio.
 
 ---
 
-## PASO 5 — Verificar todo
+### Click "Create Web Service"
 
-1. **Backend**: `https://autopy-api.onrender.com/api/v1/status` → debe mostrar modelos activos
-2. **Frontend**: `https://autopy-web.onrender.com` → debe abrir la app
-3. **Playground**: entra al Playground, escribe un mensaje → debe responder la IA
-4. **Imágenes**: pide generar una imagen → debe devolver la URL de la imagen
+El primer deploy tarda ~4-5 minutos porque instala Node, pnpm, Python y construye el frontend.
 
 ---
 
-## Variables de entorno — Resumen completo
+## PASO 3 — Verificar que funciona
 
-### Backend (`autopy-api`)
-| Variable | Requerida | Descripción |
+Una vez desplegado, tu URL será algo como `https://autopy-ai.onrender.com`.
+
+| Verificación | URL | Resultado esperado |
 |---|---|---|
-| `OPENAI_API_KEY` | ✅ Sí | Clave API de OpenAI |
-| `GROQ_API_KEY` | ✅ Sí | Clave API de Groq |
-| `ADMIN_KEY` | ✅ Sí | Contraseña del panel admin (inventa una segura) |
-| `DATABASE_URL` | ✅ Sí | URL interna de PostgreSQL (Render la da) |
-| `REDIS_URL` | ❌ Opcional | Si tienes Redis; sin él usa cache en memoria |
-
-### Frontend (`autopy-web`)
-| Variable | Requerida | Descripción |
-|---|---|---|
-| `VITE_API_URL` | ✅ Sí | URL completa del backend, ej: `https://autopy-api.onrender.com` |
+| Backend OK | `/api/healthz` | `{"status":"ok"}` |
+| Modelos activos | `/api/v1/status` | JSON con modelos |
+| Frontend | `/` | Carga la app |
+| Docs API | `/api/docs` | Swagger UI |
 
 ---
 
-## Deploys automáticos
+## 📋 Resumen visual de todos los campos
 
-Render redespliega automáticamente cada vez que haces `git push` a `main`.
+```
+┌─────────────────────────────────────────────────────┐
+│              RENDER — NEW WEB SERVICE               │
+├──────────────────────┬──────────────────────────────┤
+│ Name                 │ autopy-ai                    │
+│ Runtime              │ Python 3                     │
+│ Branch               │ main                         │
+│ Root Directory       │ (vacío)                      │
+│ Build Command        │ npm install -g pnpm@latest   │
+│                      │ && pnpm install              │
+│                      │ && BASE_PATH=/ pnpm          │
+│                      │ --filter @workspace/web      │
+│                      │ run build                    │
+│                      │ && pip install -r            │
+│                      │ artifacts/api-server/        │
+│                      │ requirements.txt             │
+│ Start Command        │ cd artifacts/api-server      │
+│                      │ && uvicorn main:app          │
+│                      │ --host 0.0.0.0               │
+│                      │ --port $PORT                 │
+│                      │ --workers 2                  │
+│ Health Check Path    │ /api/healthz                 │
+├──────────────────────┼──────────────────────────────┤
+│ DATABASE_URL         │ tu Neon connection string    │
+│ OPENAI_API_KEY       │ sk-...                       │
+│ GROQ_API_KEY         │ gsk_...                      │
+│ ADMIN_KEY            │ string aleatorio seguro      │
+└──────────────────────┴──────────────────────────────┘
+```
 
-- **Backend**: redeploy tarda ~2 min
-- **Frontend**: rebuild + redeploy tarda ~2 min
+---
 
-Si no quieres autodeploy, ve al servicio → **Settings** → desactiva **"Auto-Deploy"**.
+## 🔄 Deploys automáticos
+
+Cada `git push` a `main` lanza un nuevo deploy automáticamente.
 
 ---
 
 ## ⚠️ Limitaciones del plan gratuito
 
-| Limitación | Free | Starter ($7/mes) |
+| | Free | Starter ($7/mes) |
 |---|---|---|
-| **Sleep tras inactividad** | Sí (15 min) | No |
-| **Primera petición fría** | ~30 seg | Instantáneo |
-| **Base de datos** | 1 GB, expira en 90 días | Persistente |
-| **Ancho de banda** | 100 GB/mes | 100 GB/mes |
+| Sleep tras 15 min sin tráfico | ✅ Sí | ❌ No |
+| Primera petición tras sleep | ~30 seg | Instantáneo |
+| RAM | 512 MB | 512 MB |
+| CPU | 0.1 | 0.5 |
 
-Para producción real se recomienda al menos el plan **Starter** en el backend.
+**Recomendación:** usa **Starter** si el proyecto es para usuarios reales.
 
 ---
 
-## Solución de problemas
+## 🛠️ Solución de problemas
 
-### El backend da error 500
-- Revisa los logs en Render → `autopy-api` → **Logs**
-- Verifica que `OPENAI_API_KEY`, `GROQ_API_KEY` y `DATABASE_URL` estén correctas
+### Build falla en `pnpm install`
+→ Verifica que el `Root Directory` esté **vacío** (no pongas `artifacts/api-server`)
 
-### El frontend muestra "Error de conexión"
-- Verifica que `VITE_API_URL` apunte exactamente a tu backend (sin `/` al final)
-- Reconstruye el frontend: Render → `autopy-web` → **Manual Deploy**
+### Build falla en `pip install`
+→ Verifica que el archivo `artifacts/api-server/requirements.txt` exista en tu repo
 
-### Error de CORS
-- El backend ya tiene `allow_origins=["*"]` en `main.py` — no requiere configuración extra
+### App abre pero el chat da error
+→ Verifica `OPENAI_API_KEY` y `GROQ_API_KEY` en el dashboard de Render → Environment
+
+### Base de datos da error de conexión
+→ La Neon URL debe terminar en `?sslmode=require`
+→ Ejemplo correcto: `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`
 
 ### La imagen no se genera
-- El sistema intenta DALL-E 3 primero, luego DALL-E 2 como fallback
-- Verifica que tu `OPENAI_API_KEY` tenga créditos en [platform.openai.com/usage](https://platform.openai.com/usage)
+→ Verifica que tu cuenta de OpenAI tenga créditos en [platform.openai.com/usage](https://platform.openai.com/usage)
+→ El sistema intenta DALL-E 3 primero, luego DALL-E 2 automáticamente

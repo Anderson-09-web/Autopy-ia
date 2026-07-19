@@ -3,12 +3,17 @@ Autopy AI — Unified AI Platform API
 FastAPI application entry point.
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Built React files live at artifacts/web/dist/public (sibling of api-server)
+_DIST = Path(__file__).parent.parent / "web" / "dist" / "public"
 
 from app.database import init_db
 from app.routers import health, chat, images, status, models, discord, user, openai_compat
@@ -93,3 +98,18 @@ app.include_router(dashboard.router, prefix=ADMIN, tags=["admin"])
 app.include_router(logs.router, prefix=ADMIN, tags=["admin"])
 app.include_router(models_admin.router, prefix=ADMIN, tags=["admin"])
 app.include_router(extra.router, prefix=ADMIN, tags=["admin"])
+
+# ── Serve React frontend (production only) ───────────────────────────────────
+# In development, Vite's dev server handles the frontend separately.
+# In production (Render), FastAPI serves the built static files.
+if _DIST.exists():
+    # Hashed assets — cache indefinitely
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
+
+    # SPA catch-all: serve known static files or fall back to index.html
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        target = _DIST / full_path
+        if target.exists() and target.is_file():
+            return FileResponse(str(target))
+        return FileResponse(str(_DIST / "index.html"))
