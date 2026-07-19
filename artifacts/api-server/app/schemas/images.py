@@ -16,4 +16,4 @@ class ImageResponse(BaseModel):
     base64: str | None = None
     model: str
     provider: str
-    latency_ms: int | None = None
+    latencyMs: int | None = None   # camelCase matches the generated API client

@@ -237,6 +237,7 @@ async def image_with_failover(
     prompt: str,
     size: str = "1024x1024",
     response_format: str = "url",
+    model: str | None = None,
 ) -> tuple[ImageResult, int]:
     """
     Run image generation with failover.
@@ -256,6 +257,7 @@ async def image_with_failover(
                     prompt=prompt,
                     size=size,
                     response_format=response_format,
+                    model=model,
                 ),
                 timeout=90,
             )

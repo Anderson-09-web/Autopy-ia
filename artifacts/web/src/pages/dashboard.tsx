@@ -185,10 +185,10 @@ export default function Dashboard() {
         <StatsOverview adminKey={adminKey} />
       </ErrorBoundary>
 
-      {/* Manual tab bar */}
+      {/* Manual tab bar — startTransition evita que Dialog portals se desmonten a mitad de render */}
       <div className="flex gap-1 p-1 rounded-lg bg-black/40 border border-white/5 w-fit">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setTab(id)}
+          <button key={id} onClick={() => startTransition(() => setTab(id))}
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === id ? "bg-primary/20 text-white" : "text-muted-foreground hover:text-white hover:bg-white/5"
             }`}>

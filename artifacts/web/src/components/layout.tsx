@@ -3,15 +3,18 @@ import { Link, useLocation } from "wouter";
 import { Terminal, LayoutDashboard, FileText, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useAuth } from "@/lib/auth";
 import autopyLogo from "@/assets/autopy-logo.jpeg";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const { adminKey } = useAuth();
 
   const links = [
     { href: "/playground", label: "Playground", icon: Terminal },
     { href: "/docs", label: "Docs", icon: FileText },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    // Dashboard solo visible si hay admin key guardada
+    ...(adminKey ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
     { href: "/status", label: "Status", icon: Activity },
   ];
 

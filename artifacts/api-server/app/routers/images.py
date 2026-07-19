@@ -48,6 +48,7 @@ async def generate_image(
             prompt=body.prompt,
             size=body.size,
             response_format=response_format,
+            model=body.model,
         )
     except Exception as e:
         latency = int((time.time() - start_ms) * 1000)
@@ -67,15 +68,15 @@ async def generate_image(
     )
 
     _log(db, api_key, ip, result.model, result.provider, "success", 200, latency_ms, None, failover_count)
-    return {
-        "success": True,
-        "message": ack_message,
-        "url": result.url,
-        "base64": result.base64,
-        "model": result.model,
-        "provider": result.provider,
-        "latencyMs": latency_ms,
-    }
+    return ImageResponse(
+        success=True,
+        message=ack_message,
+        url=result.url,
+        base64=result.base64,
+        model=result.model,
+        provider=result.provider,
+        latencyMs=latency_ms,
+    )
 
 
 def _log(db, api_key, ip, model, provider, status, status_code, latency_ms, tokens, failover_count, error=None):
