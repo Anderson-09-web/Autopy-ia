@@ -13,12 +13,9 @@ services:
 
     rootDir: .                   # raíz del monorepo
 
-    # 1. Instala Node + pnpm, construye el frontend, instala deps de Python
-    buildCommand: |
-      npm install -g pnpm@latest
-      pnpm install
-      BASE_PATH=/ pnpm --filter @workspace/web run build
-      pip install -r artifacts/api-server/requirements.txt
+    # 1. Construye frontend + instala deps Python
+    #    (render-build.sh instala pnpm en $HOME para evitar el error EROFS)
+    buildCommand: bash render-build.sh
 
     # 2. Arranca FastAPI (sirve API + archivos estáticos del frontend)
     startCommand: >

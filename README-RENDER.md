@@ -58,14 +58,14 @@ Ve a [render.com](https://render.com) → **New +** → **Web Service**
 
 ### 🔨 Build Command
 
-Copia esto exactamente:
-
 ```
-npm install -g pnpm@latest && pnpm install && BASE_PATH=/ pnpm --filter @workspace/web run build && pip install -r artifacts/api-server/requirements.txt
+bash render-build.sh
 ```
 
-Lo que hace, en orden:
-1. Instala pnpm
+> **¿Por qué un script?** Render tiene `/usr/lib/node_modules` como read-only, así que `npm install -g pnpm` falla con `EROFS`. El script instala pnpm en `$HOME/.npm-global` (escribible) y luego construye todo.
+
+Lo que hace el script, en orden:
+1. Instala pnpm en directorio local (`$HOME/.npm-global`)
 2. Instala dependencias Node del monorepo
 3. Construye el frontend React (genera `artifacts/web/dist/public/`)
 4. Instala dependencias Python del backend
