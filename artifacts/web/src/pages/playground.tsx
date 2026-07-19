@@ -71,6 +71,10 @@ function ApiKeyGate({ onSave }: { onSave: (key: string) => void }) {
 }
 
 // ─── Playground shell ─────────────────────────────────────────────────────────
+// We use plain state for the active tab to avoid Radix UI Tabs
+// mounting both panels simultaneously — that causes Select portals to go
+// orphan and triggers the "removeChild" React reconciliation crash.
+
 type Tab = "chat" | "image";
 
 export default function Playground() {
@@ -92,7 +96,7 @@ export default function Playground() {
         </Button>
       </div>
 
-      {/* Tab bar */}
+      {/* Manual tab bar — avoids Radix Tabs portal issues */}
       <div className="flex gap-1 p-1 rounded-lg bg-black/40 border border-white/5 w-fit">
         <button
           onClick={() => setTab("chat")}
@@ -112,7 +116,7 @@ export default function Playground() {
         </button>
       </div>
 
-      {/* Panel */}
+      {/* Panel — only ONE child rendered at a time → no orphan portals */}
       <div className="flex-1 border border-white/5 rounded-xl bg-card/40 backdrop-blur flex overflow-hidden min-h-[500px]">
         <ErrorBoundary key={tab}>
           {tab === "chat" ? (
@@ -292,7 +296,7 @@ function ChatInterface({ apiKey }: { apiKey: string }) {
                   />
                 ))}
               </span>
-              <span className="text-sm text-muted-foreground">Generando respuesta...</span>
+              <span className="text-sm text-muted-foreground animate-pulse">✨ Generando respuesta...</span>
             </div>
           </div>
         )}
@@ -447,7 +451,7 @@ function ImageInterface({ apiKey }: { apiKey: string }) {
         {generate.isPending ? (
           <div className="flex flex-col items-center gap-4 text-muted-foreground">
             <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            <p className="font-mono text-sm animate-pulse">Generando imagen…</p>
+            <p className="font-mono text-sm animate-pulse">✨ Creando tu imagen…</p>
             <p className="text-xs text-muted-foreground/60">Puede tardar 10–30 segundos</p>
           </div>
         ) : result?.error ? (

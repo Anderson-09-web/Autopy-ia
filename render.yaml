@@ -1,0 +1,43 @@
+################################################################################
+# Autopy AI — Render (UN SOLO Web Service)
+# Frontend + Backend juntos, base de datos Neon externa.
+# Guía completa: README-RENDER.md
+################################################################################
+
+services:
+  - type: web
+    name: autopy-ai
+    runtime: python
+    region: oregon
+    plan: free                   # cambia a "starter" para producción
+
+    rootDir: .                   # raíz del monorepo
+
+    # npx descarga pnpm al caché sin necesitar escribir en /usr/lib (EROFS fix)
+    buildCommand: >-
+      npx --yes pnpm@9 install --no-frozen-lockfile &&
+      BASE_PATH=/ npx pnpm@9 --filter @workspace/web run build &&
+      pip install -r artifacts/api-server/requirements.txt
+
+    # 2. Arranca FastAPI (sirve API + archivos estáticos del frontend)
+    startCommand: >
+      cd artifacts/api-server &&
+      uvicorn main:app
+      --host 0.0.0.0
+      --port $PORT
+      --workers 2
+
+    healthCheckPath: /api/healthz
+
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # pega tu Neon URL aquí en el dashboard
+
+      - key: OPENAI_API_KEY
+        sync: false
+
+      - key: GROQ_API_KEY
+        sync: false
+
+      - key: ADMIN_KEY
+        sync: false          # string aleatorio seguro, ej: openssl rand -hex 32
