@@ -266,7 +266,12 @@ async def image_with_failover(
             failover_count += 1
             continue
         except Exception as e:
-            provider.mark_failed()
+            err_str = str(e).lower()
+            # Only back off the provider for transient / server-side errors.
+            # 400 bad-request errors are our problem (wrong parameters), not the provider being down.
+            is_transient = any(k in err_str for k in ("timeout", "connection", "502", "503", "504", "rate_limit", "rate limit", "overloaded"))
+            if is_transient:
+                provider.mark_failed()
             errors.append(f"{provider.name}: {e}")
             failover_count += 1
 

@@ -59,7 +59,7 @@ class OpenAIProvider(BaseProvider):
         self,
         prompt: str,
         size: str = "1024x1024",
-        response_format: str = "url",
+        response_format: str = "url",  # kept for signature compat; SDK v2 ignores it
         model: str | None = None,
         timeout: float = 60.0,
     ) -> ImageResult:
@@ -72,7 +72,6 @@ class OpenAIProvider(BaseProvider):
             size = "1024x1024"
 
         # Build the model priority list.
-        # If the caller requests a specific model, start there; otherwise try dall-e-3 first.
         if model and model in ("dall-e-3", "dall-e-2"):
             models_to_try = [model, "dall-e-2"] if model == "dall-e-3" else [model, "dall-e-3"]
         else:
@@ -81,17 +80,15 @@ class OpenAIProvider(BaseProvider):
         last_error: Exception | None = None
         for m in models_to_try:
             try:
-                kwargs: dict = dict(
+                img_size = "1024x1024" if (m == "dall-e-2" and size != "1024x1024") else size
+                # NOTE: OpenAI SDK ≥ v2.x removed the `response_format` parameter.
+                # Images always return a URL by default.
+                response = await client.images.generate(
                     model=m,
                     prompt=prompt,
                     n=1,
-                    size=size,
-                    response_format=response_format,  # "url" or "b64_json"
+                    size=img_size,
                 )
-                # dall-e-2 doesn't support 1024x1792 / 1792x1024
-                if m == "dall-e-2" and size != "1024x1024":
-                    kwargs["size"] = "1024x1024"
-                response = await client.images.generate(**kwargs)
                 latency_ms = int((time.time() - start) * 1000)
                 img = response.data[0]
                 self.mark_success()
@@ -104,11 +101,11 @@ class OpenAIProvider(BaseProvider):
                 )
             except Exception as e:
                 last_error = e
-                # Prompt / content policy errors are final — don't retry with another model.
                 err_str = str(e).lower()
+                # Content policy errors are final — no point retrying with another model.
                 if any(k in err_str for k in ("content_policy", "safety", "rejected", "invalid_image")):
                     raise
-                # Any other error (quota, permission, model unavailable…) → try next model.
+                # Any other error → try next model.
                 continue
 
         raise last_error or RuntimeError("Image generation failed on all available models")
