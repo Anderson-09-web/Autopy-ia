@@ -334,7 +334,7 @@ print(response.choices[0].message.content)`} />
           {/* Images */}
           <h3 id="images" className="text-xl font-semibold mt-10 scroll-mt-20">Generación de imágenes</h3>
           <EndpointHeader method="POST" path="/api/v1/images"
-            description="Genera una imagen a partir de un prompt de texto usando gpt-image-1 con failover." />
+            description="Genera una imagen a partir de un prompt de texto usando Gemini con failover." />
           <ParamTable params={[
             { name: "prompt",  type: "string", required: true,  description: "Descripción en lenguaje natural de la imagen a generar." },
             { name: "size",    type: "string", required: false, description: "Resolución: 1024x1024 | 1536x1024 | 1024x1536. Default: 1024x1024." },
@@ -352,8 +352,8 @@ print(response.choices[0].message.content)`} />
   "success": true,
   "url": "https://...",
   "base64": null,
-  "model": "gpt-image-1",
-  "provider": "openai",
+  "model": "gemini-2.0-flash-image",
+  "provider": "gemini",
   "latencyMs": 8420
 }`} />
 

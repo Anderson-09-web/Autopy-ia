@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     database_url: str = ""
 
     # AI Provider API Keys
-    openai_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
 
@@ -24,8 +23,8 @@ class Settings(BaseSettings):
     default_rate_limit_rpm: int = 100  # requests per minute
 
     # Provider timeouts (seconds)
-    provider_timeout: float = 25.0       # max for the last/only provider
-    failover_timeout: float = 10.0       # timeout before trying next provider
+    provider_timeout: float = 20.0       # max for the last/only provider
+    failover_timeout: float = 5.0        # timeout before trying next provider
 
     # App version
     version: str = "1.0.0"

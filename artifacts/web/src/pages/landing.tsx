@@ -101,7 +101,7 @@ export default function Landing() {
 {"}"});{"\n\n"}
 <span className="text-gray-500">// Requests automatically load-balance and failover</span>{"\n"}
 <span className="text-purple-400">const</span> response = <span className="text-purple-400">await</span> ai.chat.completions.create({"{\n"}
-{"  "}model: <span className="text-green-400">'auto'</span>, <span className="text-gray-500">// Or specify 'gpt-4o', 'claude-3.5-sonnet', 'llama3'</span>{"\n"}
+{"  "}model: <span className="text-green-400">'auto'</span>, <span className="text-gray-500">// Or specify 'llama-3.3-70b-versatile', 'gemini-2.5-flash', 'llama-3.1-8b-instant'</span>{"\n"}
 {"  "}messages: [{"{ "}role: <span className="text-green-400">'user'</span>, content: <span className="text-green-400">'Explain quantum computing'</span>{" }"}],{"\n"}
 {"}"});{"\n\n"}
 <span className="text-blue-400">console</span>.log(response.text);

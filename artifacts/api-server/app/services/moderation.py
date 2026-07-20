@@ -1,9 +1,8 @@
 """
 Content moderation — blocks explicit/harmful content before processing.
-Uses keyword matching + optional OpenAI moderation API.
+Uses keyword matching.
 """
 import re
-from app.config import settings
 
 # Explicit content patterns to block
 _BLOCKED_PATTERNS = [
@@ -44,19 +43,7 @@ async def moderate_text(text: str) -> tuple[bool, str | None]:
     Check if text is safe.
     Returns (is_safe, reason).
     """
-    # Keyword check first (fast)
     if is_content_blocked(text):
         return False, "Explicit content detected"
-
-    # Optional: OpenAI moderation API for better accuracy
-    if settings.openai_api_key:
-        try:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=settings.openai_api_key)
-            result = await client.moderations.create(input=text)
-            if result.results and result.results[0].flagged:
-                return False, "Content flagged by moderation system"
-        except Exception:
-            pass  # Fall through to allow if moderation API is unavailable
 
     return True, None

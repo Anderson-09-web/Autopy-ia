@@ -1,6 +1,6 @@
 """
 Google Gemini provider — chat completions via REST API using httpx.
-Supports: gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro.
+Supports: gemini-2.5-flash (default), gemini-2.5-pro, gemini-2.0-flash.
 """
 import time
 
@@ -39,7 +39,7 @@ class GeminiProvider(BaseProvider):
     async def chat(
         self,
         messages: list[dict],
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-flash",
         max_tokens: int = 1024,
         temperature: float = 0.7,
         timeout: float = 25.0,

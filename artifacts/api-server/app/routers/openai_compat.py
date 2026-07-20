@@ -42,7 +42,7 @@ class OAIMessage(BaseModel):
 
 class OAIRequest(BaseModel):
     messages: list[OAIMessage]
-    model: str | None = "gpt-4o-mini"
+    model: str | None = "llama-3.3-70b-versatile"
     max_tokens: int | None = 1024
     temperature: float | None = 0.7
     stream: bool = False

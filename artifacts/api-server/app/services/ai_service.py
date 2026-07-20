@@ -18,42 +18,42 @@ if TYPE_CHECKING:
 # Model registry
 # ──────────────────────────────────────────────
 _MODEL_REGISTRY: list[dict] = [
-    # ── Chat: OpenAI ────────────────────────────
+    # ── Chat: Groq (ultra-fast inference) ───────
     {
-        "id": "gpt-4o-mini",
-        "name": "GPT-4o Mini",
-        "provider": "openai",
+        "id": "llama-3.1-8b-instant",
+        "name": "Llama 3.1 8B Instant",
+        "provider": "groq",
         "speed": "fast",
         "status": "active",
         "priority": 1,
-        "max_tokens": 16384,
-        "supports_images": False,
-    },
-    {
-        "id": "gpt-4.1-mini",
-        "name": "GPT-4.1 Mini",
-        "provider": "openai",
-        "speed": "fast",
-        "status": "active",
-        "priority": 2,
         "max_tokens": 8192,
         "supports_images": False,
     },
     {
-        "id": "gpt-4.1-nano",
-        "name": "GPT-4.1 Nano",
-        "provider": "openai",
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B",
+        "provider": "groq",
+        "speed": "fast",
+        "status": "active",
+        "priority": 2,
+        "max_tokens": 32768,
+        "supports_images": False,
+    },
+    {
+        "id": "llama3-8b-8192",
+        "name": "Llama 3 8B",
+        "provider": "groq",
         "speed": "fast",
         "status": "active",
         "priority": 3,
         "max_tokens": 8192,
         "supports_images": False,
     },
-    # ── Chat: Groq ──────────────────────────────
+    # ── Chat: Gemini ────────────────────────────
     {
-        "id": "llama-3.3-70b-versatile",
-        "name": "Llama 3.3 70B",
-        "provider": "groq",
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "provider": "gemini",
         "speed": "fast",
         "status": "active",
         "priority": 4,
@@ -61,76 +61,24 @@ _MODEL_REGISTRY: list[dict] = [
         "supports_images": False,
     },
     {
-        "id": "llama-3.1-8b-instant",
-        "name": "Llama 3.1 8B Instant",
-        "provider": "groq",
-        "speed": "fast",
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "provider": "gemini",
+        "speed": "medium",
         "status": "active",
         "priority": 5,
-        "max_tokens": 8192,
+        "max_tokens": 65536,
         "supports_images": False,
     },
-    {
-        "id": "mixtral-8x7b-32768",
-        "name": "Mixtral 8x7B",
-        "provider": "groq",
-        "speed": "fast",
-        "status": "active",
-        "priority": 6,
-        "max_tokens": 32768,
-        "supports_images": False,
-    },
-    # ── Chat: Gemini ────────────────────────────
     {
         "id": "gemini-2.0-flash",
         "name": "Gemini 2.0 Flash",
         "provider": "gemini",
         "speed": "fast",
         "status": "active",
-        "priority": 7,
+        "priority": 6,
         "max_tokens": 8192,
         "supports_images": False,
-    },
-    {
-        "id": "gemini-1.5-flash",
-        "name": "Gemini 1.5 Flash",
-        "provider": "gemini",
-        "speed": "fast",
-        "status": "active",
-        "priority": 8,
-        "max_tokens": 8192,
-        "supports_images": False,
-    },
-    {
-        "id": "gemini-1.5-pro",
-        "name": "Gemini 1.5 Pro",
-        "provider": "gemini",
-        "speed": "medium",
-        "status": "active",
-        "priority": 9,
-        "max_tokens": 8192,
-        "supports_images": False,
-    },
-    # ── Images: OpenAI ──────────────────────────
-    {
-        "id": "dall-e-3",
-        "name": "DALL-E 3",
-        "provider": "openai",
-        "speed": "medium",
-        "status": "active",
-        "priority": 1,
-        "max_tokens": 0,
-        "supports_images": True,
-    },
-    {
-        "id": "dall-e-2",
-        "name": "DALL-E 2",
-        "provider": "openai",
-        "speed": "fast",
-        "status": "active",
-        "priority": 2,
-        "max_tokens": 0,
-        "supports_images": True,
     },
     # ── Images: Gemini ──────────────────────────
     {
@@ -139,7 +87,7 @@ _MODEL_REGISTRY: list[dict] = [
         "provider": "gemini",
         "speed": "medium",
         "status": "active",
-        "priority": 3,
+        "priority": 1,
         "max_tokens": 0,
         "supports_images": True,
     },
@@ -191,29 +139,21 @@ def _build_providers():
     global _chat_providers, _image_providers
     from app.services.providers.gemini_provider import GeminiProvider
     from app.services.providers.groq_provider import GroqProvider
-    from app.services.providers.openai_provider import OpenAIProvider
     from app.services.providers.pollinations_provider import PollinationsProvider
 
     _chat_providers = []
     _image_providers = []
 
-    # OpenAI — chat + images
-    if settings.openai_api_key:
-        openai = OpenAIProvider(api_key=settings.openai_api_key)
-        openai.priority = 1
-        _chat_providers.append(openai)
-        _image_providers.append(openai)
-
-    # Groq — chat only (fast failover)
+    # Groq — chat only, ultra-fast (highest priority)
     if settings.groq_api_key:
         groq = GroqProvider(api_key=settings.groq_api_key)
-        groq.priority = 2
+        groq.priority = 1
         _chat_providers.append(groq)
 
     # Gemini — chat + images
     if settings.gemini_api_key:
         gemini = GeminiProvider(api_key=settings.gemini_api_key)
-        gemini.priority = 3
+        gemini.priority = 2
         _chat_providers.append(gemini)
         _image_providers.append(gemini)
 
@@ -254,11 +194,10 @@ def _resolve_model_for_provider(provider: BaseProvider, requested_model: str | N
             if m["id"] == requested_model and m["provider"] == provider.provider_id:
                 return requested_model
     defaults = {
-        "openai": "gpt-4o-mini",
         "groq": "llama-3.3-70b-versatile",
-        "gemini": "gemini-2.0-flash",
+        "gemini": "gemini-2.5-flash",
     }
-    return defaults.get(provider.provider_id, "gpt-4o-mini")
+    return defaults.get(provider.provider_id, "llama-3.3-70b-versatile")
 
 
 async def chat_with_failover(
