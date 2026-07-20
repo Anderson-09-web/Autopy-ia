@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 # ──────────────────────────────────────────────
 _MODEL_REGISTRY: list[dict] = [
     # ── Chat: Groq (ultra-fast inference) ───────
+    # Models are tried in order inside GroqProvider with per-model rate-limit backoff.
     {
         "id": "llama-3.1-8b-instant",
         "name": "Llama 3.1 8B Instant",
@@ -30,75 +31,33 @@ _MODEL_REGISTRY: list[dict] = [
         "supports_images": False,
     },
     {
-        "id": "llama-3.3-70b-versatile",
-        "name": "Llama 3.3 70B",
-        "provider": "groq",
-        "speed": "fast",
-        "status": "active",
-        "priority": 2,
-        "max_tokens": 32768,
-        "supports_images": False,
-    },
-    {
         "id": "llama3-8b-8192",
         "name": "Llama 3 8B",
         "provider": "groq",
         "speed": "fast",
         "status": "active",
+        "priority": 2,
+        "max_tokens": 8192,
+        "supports_images": False,
+    },
+    {
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B",
+        "provider": "groq",
+        "speed": "fast",
+        "status": "active",
         "priority": 3,
-        "max_tokens": 8192,
+        "max_tokens": 32768,
         "supports_images": False,
     },
-    # ── Chat: Gemini ────────────────────────────
-    {
-        "id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
-        "provider": "gemini",
-        "speed": "fast",
-        "status": "active",
-        "priority": 4,
-        "max_tokens": 8192,
-        "supports_images": False,
-    },
-    {
-        "id": "gemini-2.5-pro",
-        "name": "Gemini 2.5 Pro",
-        "provider": "gemini",
-        "speed": "medium",
-        "status": "active",
-        "priority": 5,
-        "max_tokens": 65536,
-        "supports_images": False,
-    },
-    {
-        "id": "gemini-2.0-flash",
-        "name": "Gemini 2.0 Flash",
-        "provider": "gemini",
-        "speed": "fast",
-        "status": "active",
-        "priority": 6,
-        "max_tokens": 8192,
-        "supports_images": False,
-    },
-    # ── Images: Gemini ──────────────────────────
-    {
-        "id": "gemini-2.0-flash-image",
-        "name": "Gemini 2.0 Flash Image",
-        "provider": "gemini",
-        "speed": "medium",
-        "status": "active",
-        "priority": 1,
-        "max_tokens": 0,
-        "supports_images": True,
-    },
-    # ── Images: Pollinations (free fallback) ────
+    # ── Images: Pollinations (free, no key needed) ──
     {
         "id": "flux",
         "name": "Flux (Pollinations)",
         "provider": "pollinations",
         "speed": "medium",
         "status": "active",
-        "priority": 10,
+        "priority": 1,
         "max_tokens": 0,
         "supports_images": True,
     },
@@ -137,29 +96,21 @@ _image_providers: list[BaseProvider] = []
 
 def _build_providers():
     global _chat_providers, _image_providers
-    from app.services.providers.gemini_provider import GeminiProvider
     from app.services.providers.groq_provider import GroqProvider
     from app.services.providers.pollinations_provider import PollinationsProvider
 
     _chat_providers = []
     _image_providers = []
 
-    # Groq — chat only, ultra-fast (highest priority)
+    # Groq — chat, handles per-model rate-limit backoff internally
     if settings.groq_api_key:
         groq = GroqProvider(api_key=settings.groq_api_key)
         groq.priority = 1
         _chat_providers.append(groq)
 
-    # Gemini — chat + images
-    if settings.gemini_api_key:
-        gemini = GeminiProvider(api_key=settings.gemini_api_key)
-        gemini.priority = 2
-        _chat_providers.append(gemini)
-        _image_providers.append(gemini)
-
     # Pollinations — images only, always available (no key needed)
     pollinations = PollinationsProvider()
-    pollinations.priority = 99
+    pollinations.priority = 1
     _image_providers.append(pollinations)
 
     _chat_providers.sort(key=lambda p: p.priority)
@@ -194,10 +145,9 @@ def _resolve_model_for_provider(provider: BaseProvider, requested_model: str | N
             if m["id"] == requested_model and m["provider"] == provider.provider_id:
                 return requested_model
     defaults = {
-        "groq": "llama-3.3-70b-versatile",
-        "gemini": "gemini-2.5-flash",
+        "groq": "llama-3.1-8b-instant",
     }
-    return defaults.get(provider.provider_id, "llama-3.3-70b-versatile")
+    return defaults.get(provider.provider_id, "llama-3.1-8b-instant")
 
 
 async def chat_with_failover(
