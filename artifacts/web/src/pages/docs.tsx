@@ -676,7 +676,7 @@ bot.run("TU_DISCORD_TOKEN")`} />
                     Comandos <code className="text-primary">/setia</code>,{" "}
                     <code className="text-primary">/ia</code> y{" "}
                     <code className="text-primary">/iaimagen</code> · Detecta imágenes automáticamente ·
-                    Personalidad divertida · Webhooks
+                    Personalidad divertida · Respuesta directa al canal
                   </p>
                 </div>
               </div>
@@ -691,7 +691,7 @@ bot.run("TU_DISCORD_TOKEN")`} />
 
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
               {[
-                { icon: "🔗", title: "/setia", desc: "Configura el canal de respuesta automática y personaliza nombre, avatar y personalidad de la IA." },
+                { icon: "🔗", title: "/setia", desc: "Activa el canal actual para respuesta automática y personaliza nombre y personalidad de la IA." },
                 { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA. Muestra '💬 Generando respuesta...' al instante." },
                 { icon: "🎨", title: "/iaimagen prompt", desc: "Genera una imagen. Muestra '🎨 Generando imagen...' al instante mientras la crea." },
               ].map((f) => (

@@ -1,9 +1,9 @@
 """
 autopy_discord_cog.py — Cog de Discord para Autopy AI
 ======================================================
-Integra Autopy AI en tu bot de Discord con soporte de Webhooks,
-historial de conversación por canal, identidad personalizable,
-generación de imágenes y failover automático entre proveedores.
+Integra Autopy AI en tu bot de Discord con respuestas directas al canal,
+historial de conversación, identidad personalizable, generación de imágenes
+y failover automático entre proveedores.
 
 Instalación:
   pip install discord.py aiohttp
@@ -13,13 +13,12 @@ Uso:
     await bot.load_extension("autopy_discord_cog")
 
 Comandos:
-  /setia    — Configura un canal para que el bot responda automáticamente
-              e incluye opciones para personalizar la identidad de la IA.
+  /setia    — Activa el canal actual para respuesta automática y personaliza la identidad.
   /ia       — Consulta directa a la IA en cualquier canal.
   /iaimagen — Genera una imagen con IA a partir de una descripción.
 
-En el canal configurado con /setia, el bot detecta automáticamente si el
-mensaje pide una imagen y responde con la generación correspondiente.
+En el canal activado con /setia, el bot detecta automáticamente si el mensaje
+pide una imagen y responde en consecuencia, sin webhooks.
 
 Documentación completa: https://autopy-ia-6a0f.onrender.com/docs
 """
@@ -27,7 +26,6 @@ Documentación completa: https://autopy-ia-6a0f.onrender.com/docs
 import asyncio
 import base64
 import io
-import json
 import re
 from typing import Optional
 
@@ -59,7 +57,7 @@ MAX_HISTORY = 20
 REQUEST_TIMEOUT = 30
 IMAGE_TIMEOUT   = 90
 
-# Palabras clave para detectar peticiones de imagen en el canal automático
+# Palabras clave para detectar peticiones de imagen
 _IMAGE_ACTION = re.compile(
     r"\b(crea|crear|genera|generar|hazme|haz|dibuja|dibujar|diseña|diseñar|pinta|pintar|"
     r"make|create|generate|draw|render)\b",
@@ -86,9 +84,7 @@ def get_channel_config(channel_id: int) -> dict:
     if channel_id not in ia_channels:
         ia_channels[channel_id] = {
             "active":       False,
-            "webhook_url":  None,
             "nombre":       "Autopy AI",
-            "avatar_url":   "https://i.imgur.com/wSTFkRM.png",
             "personalidad": DEFAULT_PERSONALITY,
             "modelo":       DEFAULT_MODEL,
             "historial":    [],
@@ -105,10 +101,7 @@ async def call_autopy(
     max_tokens: int = 1024,
     retries: int = 2,
 ) -> tuple[str, dict]:
-    """
-    Llama a POST /api/v1/chat y devuelve (texto, metadata).
-    Reintenta automáticamente en caso de error 5xx o timeout.
-    """
+    """Llama a POST /api/v1/chat y devuelve (texto, metadata)."""
     headers = {
         "Authorization": f"Bearer {AUTOPY_API_KEY}",
         "Content-Type":  "application/json",
@@ -166,10 +159,7 @@ async def call_autopy_image(
     size: str = "1024x1024",
     retries: int = 1,
 ) -> tuple[Optional[str], Optional[str], dict]:
-    """
-    Llama a POST /api/v1/images y devuelve (url, base64_data, metadata).
-    Gemini devuelve data-URLs base64; Pollinations devuelve URLs normales.
-    """
+    """Llama a POST /api/v1/images y devuelve (url, base64_data, metadata)."""
     headers = {
         "Authorization": f"Bearer {AUTOPY_API_KEY}",
         "Content-Type":  "application/json",
@@ -192,7 +182,6 @@ async def call_autopy_image(
                         }
                         raw_url = data.get("url", "")
                         raw_b64 = data.get("base64")
-                        # Gemini devuelve data-URL base64
                         if raw_url and raw_url.startswith("data:"):
                             raw_b64 = raw_b64 or raw_url.split(",", 1)[1]
                             return None, raw_b64, meta
@@ -215,83 +204,7 @@ async def call_autopy_image(
     raise RuntimeError("Error desconocido al generar imagen.")
 
 
-# ─── Helpers para enviar por Webhook ─────────────────────────────────────────
-
-async def send_via_webhook(webhook_url: str, cfg: dict, text: str):
-    """Envía texto por webhook con la identidad del canal."""
-    payload = {
-        "content":    text,
-        "username":   cfg["nombre"],
-        "avatar_url": cfg["avatar_url"],
-    }
-    timeout = aiohttp.ClientTimeout(total=15)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(webhook_url, json=payload) as wh_resp:
-            if wh_resp.status not in (200, 204):
-                print(f"[Autopy AI] Error webhook {wh_resp.status}")
-
-
-async def send_image_via_webhook(webhook_url: str, cfg: dict, prompt: str, b64_data: str):
-    """Envía una imagen base64 por webhook como archivo adjunto."""
-    image_bytes = base64.b64decode(b64_data)
-    payload_json = json.dumps({
-        "username":   cfg["nombre"],
-        "avatar_url": cfg["avatar_url"],
-        "content":    f"🎨 **Prompt:** {prompt}",
-    })
-    form = aiohttp.FormData()
-    form.add_field("payload_json", payload_json)
-    form.add_field("files[0]", image_bytes, filename="imagen.png", content_type="image/png")
-    timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(webhook_url, data=form) as wh_resp:
-            if wh_resp.status not in (200, 204):
-                print(f"[Autopy AI] Error webhook imagen {wh_resp.status}")
-
-
-# ─── Modales ──────────────────────────────────────────────────────────────────
-
-class SetWebhookModal(discord.ui.Modal, title="Configurar Canal con IA"):
-    channel_id_input = discord.ui.TextInput(
-        label="ID del Canal de Texto",
-        placeholder="Ej. 112233445566778899",
-        required=True,
-        max_length=25,
-    )
-    url_input = discord.ui.TextInput(
-        label="URL del Webhook de Discord",
-        placeholder="https://discord.com/api/webhooks/...",
-        required=True,
-    )
-
-    def __init__(self, current_channel_id: int, refresh_cb):
-        super().__init__()
-        self.current_channel_id = current_channel_id
-        self.refresh_cb = refresh_cb
-
-    async def on_submit(self, interaction: discord.Interaction):
-        cid_str = self.channel_id_input.value.strip()
-        if not cid_str.isdigit():
-            await interaction.response.send_message(
-                "❌ El ID del canal debe ser solo números.", ephemeral=True
-            )
-            return
-        wh_url = self.url_input.value.strip()
-        if not re.match(r"^https://(canary\.|ptb\.)?discord\.com/api/webhooks/\d+/\S+", wh_url):
-            await interaction.response.send_message(
-                "❌ La URL no parece ser un Webhook de Discord válido.", ephemeral=True
-            )
-            return
-        cid = int(cid_str)
-        cfg = get_channel_config(cid)
-        cfg["webhook_url"] = wh_url
-        cfg["active"] = True
-        await interaction.response.send_message(
-            f"✅ Canal <#{cid}> configurado. La IA responderá automáticamente allí.",
-            ephemeral=True,
-        )
-        await self.refresh_cb(interaction, cid)
-
+# ─── Modal — Editar identidad ─────────────────────────────────────────────────
 
 class EditIdentityModal(discord.ui.Modal, title="Editar Identidad de la IA"):
     name_input = discord.ui.TextInput(
@@ -299,11 +212,6 @@ class EditIdentityModal(discord.ui.Modal, title="Editar Identidad de la IA"):
         placeholder="Ej. Jarvis",
         max_length=50,
         required=True,
-    )
-    avatar_input = discord.ui.TextInput(
-        label="URL del Avatar (opcional)",
-        placeholder="https://link-de-imagen.png",
-        required=False,
     )
     personality_input = discord.ui.TextInput(
         label="Personalidad / Prompt de Sistema",
@@ -319,14 +227,11 @@ class EditIdentityModal(discord.ui.Modal, title="Editar Identidad de la IA"):
         self.refresh_cb = refresh_cb
         cfg = get_channel_config(channel_id)
         self.name_input.default        = cfg["nombre"]
-        self.avatar_input.default      = cfg.get("avatar_url", "")
         self.personality_input.default = cfg["personalidad"]
 
     async def on_submit(self, interaction: discord.Interaction):
         cfg = get_channel_config(self.channel_id)
-        cfg["nombre"] = self.name_input.value.strip()
-        if self.avatar_input.value.strip():
-            cfg["avatar_url"] = self.avatar_input.value.strip()
+        cfg["nombre"]      = self.name_input.value.strip()
         cfg["personalidad"] = self.personality_input.value.strip()
         await interaction.response.send_message("✅ Identidad actualizada.", ephemeral=True)
         await self.refresh_cb(interaction, self.channel_id)
@@ -341,42 +246,34 @@ class IAControlView(discord.ui.View):
 
     def build_embed(self, channel_id: int) -> discord.Embed:
         cfg = get_channel_config(channel_id)
-        activo = cfg["active"] and cfg["webhook_url"]
-        estado = "🟢 ACTIVO — responde a todos los mensajes" if activo else "🔴 INACTIVO"
+        estado = "🟢 ACTIVO — responde a todos los mensajes" if cfg["active"] else "🔴 INACTIVO"
 
         embed = discord.Embed(
             title="🤖 Panel de Configuración — Autopy AI",
             description=(
-                "Configura el canal donde la IA responde automáticamente.\n"
-                "Detecta peticiones de texto **e imágenes** de forma automática."
+                "El bot responde directamente en este canal — sin webhooks, sin demoras extra.\n"
+                "Detecta texto e imágenes de forma automática."
             ),
             color=0x7C3AED,
         )
-        embed.add_field(name="Canal",        value=f"<#{channel_id}> (`{channel_id}`)", inline=False)
-        embed.add_field(name="Estado",       value=f"`{estado}`",                       inline=True)
-        embed.add_field(name="Nombre",       value=f"`{cfg['nombre']}`",                inline=True)
-        embed.add_field(name="Modelo",       value=f"`{cfg['modelo']}`",                inline=True)
-        embed.add_field(name="Personalidad", value=f"*{cfg['personalidad'][:200]}*",    inline=False)
+        embed.add_field(name="Canal",        value=f"<#{channel_id}>",              inline=True)
+        embed.add_field(name="Estado",       value=f"`{estado}`",                   inline=True)
+        embed.add_field(name="Nombre",       value=f"`{cfg['nombre']}`",            inline=True)
+        embed.add_field(name="Personalidad", value=f"*{cfg['personalidad'][:220]}*", inline=False)
         if cfg.get("last_error"):
             embed.add_field(name="⚠️ Último error", value=cfg["last_error"][:200], inline=False)
-        if cfg.get("avatar_url", "").startswith("http"):
-            embed.set_thumbnail(url=cfg["avatar_url"])
-        embed.set_footer(text="Autopy AI · llama-3.3-70b-versatile + gemini-2.5-flash")
+        embed.set_footer(text="Autopy AI · Groq + Gemini")
         return embed
 
     async def refresh(self, interaction: discord.Interaction, channel_id: int):
         self.channel_id = channel_id
         await interaction.message.edit(embed=self.build_embed(channel_id), view=self)
 
-    @discord.ui.button(label="Establecer Canal / Webhook", style=discord.ButtonStyle.success, emoji="🔗", row=0)
-    async def set_webhook(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.send_modal(SetWebhookModal(self.channel_id, self.refresh))
-
     @discord.ui.button(label="Editar Identidad", style=discord.ButtonStyle.primary, emoji="🎭", row=0)
     async def edit_identity(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.send_modal(EditIdentityModal(self.channel_id, self.refresh))
 
-    @discord.ui.button(label="Activar / Desactivar", style=discord.ButtonStyle.secondary, emoji="⏸️", row=1)
+    @discord.ui.button(label="Activar / Desactivar", style=discord.ButtonStyle.secondary, emoji="⏸️", row=0)
     async def toggle(self, interaction: discord.Interaction, _: discord.ui.Button):
         cfg = get_channel_config(self.channel_id)
         cfg["active"] = not cfg["active"]
@@ -384,7 +281,7 @@ class IAControlView(discord.ui.View):
         await interaction.response.send_message(f"IA {estado} en <#{self.channel_id}>.", ephemeral=True)
         await self.refresh(interaction, self.channel_id)
 
-    @discord.ui.button(label="Limpiar historial", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
+    @discord.ui.button(label="Limpiar historial", style=discord.ButtonStyle.danger, emoji="🗑️", row=0)
     async def clear_history(self, interaction: discord.Interaction, _: discord.ui.Button):
         get_channel_config(self.channel_id)["historial"] = []
         await interaction.response.send_message("🗑️ Historial borrado.", ephemeral=True)
@@ -403,11 +300,14 @@ class IACog(commands.Cog):
 
     @app_commands.command(
         name="setia",
-        description="Configura un canal donde la IA responde automáticamente y personaliza su identidad.",
+        description="Activa el canal actual para respuesta automática y personaliza la identidad de la IA.",
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def setia(self, interaction: discord.Interaction):
         cid = interaction.channel_id
+        # Activa el canal automáticamente al usar el comando
+        cfg = get_channel_config(cid)
+        cfg["active"] = True
         view = IAControlView(cid)
         await interaction.response.send_message(embed=view.build_embed(cid), view=view)
 
@@ -469,7 +369,7 @@ class IACog(commands.Cog):
         except Exception as e:
             await interaction.edit_original_response(content=f"⚠️ {e}")
 
-    # ── Escucha pasiva — responde automáticamente en el canal configurado ──
+    # ── Escucha pasiva — responde directo al canal, sin webhooks ──
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -479,20 +379,18 @@ class IACog(commands.Cog):
 
         cfg = get_channel_config(message.channel.id)
 
-        # Solo actuar si el canal está activo con webhook
-        if not (cfg["active"] and cfg["webhook_url"]):
+        # Solo actuar en el canal activado con /setia
+        if not cfg["active"]:
             return
 
-        # Detectar si pide una imagen o una respuesta de texto
         if _is_image_request(message.content):
             await self._handle_image_auto(message, cfg)
         else:
             await self._handle_chat_auto(message, cfg)
 
     async def _handle_chat_auto(self, message: discord.Message, cfg: dict):
-        """Responde con texto en el canal automático."""
-        # Muestra "Generando respuesta..." como mensaje del canal (no webhook)
-        status_msg = await message.channel.send("💬 Generando respuesta...")
+        """Responde con texto directo al canal."""
+        status = await message.channel.send("💬 Generando respuesta...")
 
         messages_payload = [{"role": "system", "content": cfg["personalidad"]}]
         for msg in cfg["historial"]:
@@ -503,18 +401,11 @@ class IACog(commands.Cog):
         })
 
         try:
-            text, _ = await call_autopy(messages_payload, model=cfg["modelo"])
+            text, meta = await call_autopy(messages_payload, model=cfg["modelo"])
         except Exception as e:
             cfg["last_error"] = str(e)[:200]
-            await status_msg.delete()
-            print(f"[Autopy AI] Error chat en canal {message.channel.id}: {e}")
+            await status.edit(content=f"⚠️ {e}")
             return
-
-        # Borrar el mensaje de estado y enviar la respuesta por webhook
-        try:
-            await status_msg.delete()
-        except Exception:
-            pass
 
         # Actualizar historial
         cfg["historial"].append({"role": "user",      "content": f"{message.author.display_name}: {message.content}"})
@@ -523,42 +414,42 @@ class IACog(commands.Cog):
             cfg["historial"] = cfg["historial"][-MAX_HISTORY:]
         cfg["last_error"] = None
 
-        try:
-            await send_via_webhook(cfg["webhook_url"], cfg, text)
-        except Exception as e:
-            print(f"[Autopy AI] Error webhook en canal {message.channel.id}: {e}")
+        # Editar el mensaje de estado con la respuesta final
+        info = f"· {meta['provider']} / {meta['model']}"
+        if meta.get("latencyMs"):
+            info += f" · {meta['latencyMs']}ms"
+        await status.edit(content=f"{text}\n\n-# Autopy AI {info}")
 
     async def _handle_image_auto(self, message: discord.Message, cfg: dict):
-        """Genera una imagen en el canal automático."""
-        # Muestra "Generando imagen..." como mensaje del canal
-        status_msg = await message.channel.send("🎨 Generando imagen...")
-
-        prompt = message.content
+        """Genera y envía una imagen directo al canal."""
+        status = await message.channel.send("🎨 Generando imagen...")
 
         try:
-            url, b64_data, meta = await call_autopy_image(prompt)
+            url, b64_data, meta = await call_autopy_image(message.content)
         except Exception as e:
             cfg["last_error"] = str(e)[:200]
-            await status_msg.delete()
-            print(f"[Autopy AI] Error imagen en canal {message.channel.id}: {e}")
+            await status.edit(content=f"⚠️ {e}")
             return
 
-        try:
-            await status_msg.delete()
-        except Exception:
-            pass
-
         cfg["last_error"] = None
+        info = f"· {meta['provider']} / {meta['model']}"
+        if meta.get("latencyMs"):
+            info += f" · {meta['latencyMs']}ms"
 
-        try:
-            if url and url.startswith("http"):
-                await send_via_webhook(cfg["webhook_url"], cfg, f"🎨 **Prompt:** {prompt}\n{url}")
-            elif b64_data:
-                await send_image_via_webhook(cfg["webhook_url"], cfg, prompt, b64_data)
-            else:
-                await message.channel.send("⚠️ No se pudo generar la imagen.")
-        except Exception as e:
-            print(f"[Autopy AI] Error enviando imagen por webhook: {e}")
+        if url and url.startswith("http"):
+            embed = discord.Embed(description=f"**Prompt:** {message.content}", color=0x7C3AED)
+            embed.set_image(url=url)
+            embed.set_footer(text=f"Autopy AI {info}")
+            await status.edit(content="", embed=embed)
+        elif b64_data:
+            image_bytes = base64.b64decode(b64_data)
+            file = discord.File(fp=io.BytesIO(image_bytes), filename="imagen.png")
+            caption = f"**Prompt:** {message.content}\n-# Autopy AI {info}"
+            # Eliminar el mensaje de estado y enviar con archivo adjunto
+            await status.delete()
+            await message.channel.send(content=caption, file=file)
+        else:
+            await status.edit(content="⚠️ No se pudo generar la imagen. Intenta de nuevo.")
 
 
 # ─── Registro del Cog ─────────────────────────────────────────────────────────
