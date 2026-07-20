@@ -17,6 +17,7 @@ class GeminiProvider(BaseProvider):
     priority = 3
 
     def __init__(self, api_key: str):
+        super().__init__()
         self.api_key = api_key
 
     def _convert_messages(self, messages: list[dict]) -> tuple[list, list | None]:
@@ -128,6 +129,9 @@ class GeminiProvider(BaseProvider):
                 headers={"x-goog-api-key": self.api_key},
                 json=body,
             )
+            if resp.status_code == 429:
+                self.mark_rate_limited()
+                raise RuntimeError(f"Gemini rate limit (429): {resp.text[:200]}")
             resp.raise_for_status()
             data = resp.json()
 

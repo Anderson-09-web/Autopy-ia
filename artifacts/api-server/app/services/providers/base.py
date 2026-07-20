@@ -30,16 +30,27 @@ class BaseProvider(ABC):
     name: str = "base"
     provider_id: str = "base"
     priority: int = 999
-    _failed_until: float = 0
-    _backoff_seconds: float = 30.0
+    _backoff_seconds: float = 20.0
+    _rate_limit_backoff_seconds: float = 8.0
+
+    def __init__(self):
+        self._failed_until: float = 0
 
     def is_available(self) -> bool:
         """Return True if the provider is not in backoff."""
         return time.time() > self._failed_until
 
+    def seconds_until_available(self) -> float:
+        """How many seconds until this provider exits backoff (0 if available)."""
+        return max(0.0, self._failed_until - time.time())
+
     def mark_failed(self):
         """Mark provider as failed, backing off for _backoff_seconds."""
         self._failed_until = time.time() + self._backoff_seconds
+
+    def mark_rate_limited(self):
+        """Short backoff for 429 rate-limit errors — recover faster."""
+        self._failed_until = time.time() + self._rate_limit_backoff_seconds
 
     def mark_success(self):
         """Reset backoff after successful response."""

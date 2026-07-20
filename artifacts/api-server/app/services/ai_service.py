@@ -214,7 +214,11 @@ async def chat_with_failover(
     """
     providers = _provider_for_model(model, _chat_providers)
     if not providers:
-        raise RuntimeError("No chat providers are available")
+        # All providers are in backoff — try them anyway sorted by soonest to recover.
+        all_providers = sorted(_chat_providers, key=lambda p: p.seconds_until_available())
+        if not all_providers:
+            raise RuntimeError("No chat providers are configured")
+        providers = all_providers
 
     errors: list[str] = []
     failover_count = 0

@@ -18,7 +18,7 @@ class PollinationsProvider(BaseProvider):
 
     # No API key needed
     def __init__(self):
-        pass
+        super().__init__()
 
     async def chat(
         self,

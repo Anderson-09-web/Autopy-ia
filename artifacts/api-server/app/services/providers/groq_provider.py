@@ -12,6 +12,7 @@ class GroqProvider(BaseProvider):
     priority = 2
 
     def __init__(self, api_key: str):
+        super().__init__()
         self.api_key = api_key
         self._client = None
 
@@ -31,12 +32,21 @@ class GroqProvider(BaseProvider):
     ) -> ProviderResult:
         start = time.time()
         client = self._get_client()
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        except Exception as e:
+            err = str(e).lower()
+            if "rate_limit" in err or "rate limit" in err or "429" in err:
+                self.mark_rate_limited()
+            else:
+                self.mark_failed()
+            raise
+
         latency_ms = int((time.time() - start) * 1000)
         text = response.choices[0].message.content or ""
         tokens = response.usage.total_tokens if response.usage else None
