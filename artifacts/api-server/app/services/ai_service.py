@@ -242,8 +242,16 @@ async def chat_with_failover(
             )
             _model_latency[resolved_model] = result.latency_ms or 0
             return result, failover_count
-        except Exception as e:
+        except asyncio.TimeoutError:
+            # Timeout — provider didn't self-mark, so we do it here.
             provider.mark_failed()
+            errors.append(f"{provider.name}: timeout after {timeout}s")
+            failover_count += 1
+        except Exception as e:
+            # Provider may have already called mark_rate_limited() or mark_failed()
+            # internally. Only mark failed here if it didn't set a backoff itself.
+            if provider.is_available():
+                provider.mark_failed()
             errors.append(f"{provider.name}: {e}")
             failover_count += 1
 
