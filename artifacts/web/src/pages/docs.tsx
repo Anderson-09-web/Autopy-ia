@@ -673,10 +673,10 @@ bot.run("TU_DISCORD_TOKEN")`} />
                 <div>
                   <p className="font-semibold text-sm">autopy_discord_cog.py</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Cog completo con comandos <code className="text-primary">/setia</code>,{" "}
+                    Comandos <code className="text-primary">/setia</code>,{" "}
                     <code className="text-primary">/ia</code> y{" "}
-                    <code className="text-primary">/iamodelo</code> · Historial por canal ·
-                    Webhooks · Failover automático
+                    <code className="text-primary">/iaimagen</code> · Detecta imágenes automáticamente ·
+                    Personalidad divertida · Webhooks
                   </p>
                 </div>
               </div>
@@ -691,9 +691,9 @@ bot.run("TU_DISCORD_TOKEN")`} />
 
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
               {[
-                { icon: "🔗", title: "/setia", desc: "Panel de control con botones para configurar canal, webhook e identidad de la IA." },
-                { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA. Muestra 'Generando respuesta...' mientras procesa." },
-                { icon: "🎨", title: "/iaimagen prompt", desc: "Genera una imagen con Gemini. Muestra 'Creando imagen...' mientras la crea." },
+                { icon: "🔗", title: "/setia", desc: "Configura el canal de respuesta automática y personaliza nombre, avatar y personalidad de la IA." },
+                { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA. Muestra '💬 Generando respuesta...' al instante." },
+                { icon: "🎨", title: "/iaimagen prompt", desc: "Genera una imagen. Muestra '🎨 Generando imagen...' al instante mientras la crea." },
               ].map((f) => (
                 <div key={f.title} className="p-3 rounded-lg bg-black/20 border border-white/5">
                   <p className="text-sm font-mono font-semibold mb-1">{f.icon} {f.title}</p>
