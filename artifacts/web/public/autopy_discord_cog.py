@@ -2,8 +2,8 @@
 autopy_discord_cog.py — Cog de Discord para Autopy AI
 ======================================================
 Integra Autopy AI en tu bot de Discord con soporte de Webhooks,
-historial de conversación por canal, identidad personalizable y
-failover automático entre proveedores de IA.
+historial de conversación por canal, identidad personalizable,
+generación de imágenes y failover automático entre proveedores.
 
 Instalación:
   pip install discord.py aiohttp
@@ -13,22 +13,25 @@ Uso:
     await bot.load_extension("autopy_discord_cog")
 
 Comandos:
-  /setia    — Configura un canal para responder a todos los mensajes
-  /ia       — Consulta directa a la IA (responde en el canal)
-  /iamodelo — Cambia el modelo de IA del canal
+  /setia     — Configura un canal para responder a todos los mensajes
+  /ia        — Consulta directa a la IA (muestra "Generando respuesta...")
+  /iaimagen  — Genera una imagen con IA (muestra "Creando imagen...")
+  /iamodelo  — Cambia el modelo de IA del canal
 
 Documentación completa: https://autopy-ia-6a0f.onrender.com/docs
 """
 
-import discord
-from discord.ext import commands
-from discord import app_commands
-import aiohttp
 import asyncio
-import json
+import base64
+import io
 import re
 import time
 from typing import Optional
+
+import aiohttp
+import discord
+from discord import app_commands
+from discord.ext import commands
 
 # ─── Configuración ────────────────────────────────────────────────────────────
 
@@ -36,38 +39,42 @@ AUTOPY_API_KEY  = "apt_..."                                      # Tu API key de
 AUTOPY_BASE_URL = "https://autopy-ia-6a0f.onrender.com/api/v1"  # URL base de la API
 
 # Modelo por defecto. Opciones disponibles:
-#   "auto"                    → Autopy elige el mejor disponible (recomendado)
-#   "llama-3.3-70b-versatile" → Llama 3.3 70B (Groq) — rápido y gratuito
-#   "gemini-2.0-flash"        → Gemini 2.0 Flash — muy rápido
-#   "gpt-4o-mini"             → GPT-4o Mini — requiere OPENAI_API_KEY en el servidor
-DEFAULT_MODEL = "auto"
+#   "llama-3.1-8b-instant"    → Llama 3.1 8B (Groq) — ultrarrápido
+#   "llama-3.3-70b-versatile" → Llama 3.3 70B (Groq) — rápido y potente
+#   "gemini-2.5-flash"        → Gemini 2.5 Flash — muy rápido y capaz
+#   "gemini-2.5-pro"          → Gemini 2.5 Pro — máxima calidad
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 # Máximo de mensajes en el historial por canal (evita prompts demasiado largos)
 MAX_HISTORY = 20
 
-# Tiempo máximo de espera por respuesta de la IA (segundos)
-REQUEST_TIMEOUT = 40
+# Tiempo máximo de espera por respuesta de texto (segundos)
+REQUEST_TIMEOUT = 30
+
+# Tiempo máximo de espera por generación de imagen (segundos)
+IMAGE_TIMEOUT = 90
 
 # ─── Base de datos en memoria ─────────────────────────────────────────────────
 
 ia_channels: dict[int, dict] = {}
 
+
 def get_channel_config(channel_id: int) -> dict:
     if channel_id not in ia_channels:
         ia_channels[channel_id] = {
-            "active":      False,
-            "webhook_url": None,
-            "nombre":      "Autopy AI",
-            "avatar_url":  "https://i.imgur.com/wSTFkRM.png",
+            "active":       False,
+            "webhook_url":  None,
+            "nombre":       "Autopy AI",
+            "avatar_url":   "https://i.imgur.com/wSTFkRM.png",
             "personalidad": "Eres un asistente útil, amigable y conciso.",
-            "modelo":      DEFAULT_MODEL,
-            "historial":   [],
-            "last_error":  None,
+            "modelo":       DEFAULT_MODEL,
+            "historial":    [],
+            "last_error":   None,
         }
     return ia_channels[channel_id]
 
 
-# ─── Cliente de Autopy AI ─────────────────────────────────────────────────────
+# ─── Cliente de Autopy AI — Chat ──────────────────────────────────────────────
 
 async def call_autopy(
     messages: list[dict],
@@ -123,7 +130,7 @@ async def call_autopy(
                         err_body = await resp.text()
                         last_error = f"HTTP {resp.status}: {err_body[:200]}"
                         if attempt < retries:
-                            await asyncio.sleep(2 ** attempt)   # backoff exponencial
+                            await asyncio.sleep(2 ** attempt)
                             continue
                         raise RuntimeError(f"El servidor devolvió un error: {last_error}")
                     else:
@@ -141,6 +148,73 @@ async def call_autopy(
             )
 
     raise RuntimeError(last_error or "Error desconocido al contactar la IA.")
+
+
+# ─── Cliente de Autopy AI — Imágenes ─────────────────────────────────────────
+
+async def call_autopy_image(
+    prompt: str,
+    size: str = "1024x1024",
+    retries: int = 1,
+) -> tuple[Optional[str], Optional[str], dict]:
+    """
+    Llama a POST /api/v1/images y devuelve (url, base64_data, metadata).
+    Si el proveedor devuelve una data-URL base64, base64_data estará relleno.
+    """
+    headers = {
+        "Authorization": f"Bearer {AUTOPY_API_KEY}",
+        "Content-Type":  "application/json",
+    }
+    payload = {
+        "prompt": prompt,
+        "size":   size,
+        "format": "url",
+    }
+
+    timeout = aiohttp.ClientTimeout(total=IMAGE_TIMEOUT)
+
+    for attempt in range(retries + 1):
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{AUTOPY_BASE_URL}/images",
+                    headers=headers,
+                    json=payload,
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        meta = {
+                            "model":     data.get("model", "—"),
+                            "provider":  data.get("provider", "—"),
+                            "latencyMs": data.get("latencyMs"),
+                        }
+                        raw_url = data.get("url", "")
+                        raw_b64 = data.get("base64")
+
+                        # Gemini devuelve data-URLs base64 en vez de URLs externas
+                        if raw_url and raw_url.startswith("data:"):
+                            raw_b64 = raw_b64 or raw_url.split(",", 1)[1]
+                            return None, raw_b64, meta
+
+                        return raw_url or None, raw_b64, meta
+
+                    elif resp.status == 401:
+                        raise ValueError("❌ API key inválida.")
+                    elif resp.status == 403:
+                        raise ValueError("⚠️ Imagen bloqueada por moderación.")
+                    elif resp.status == 429:
+                        raise ValueError("⏳ Rate limit alcanzado. Espera un momento.")
+                    else:
+                        body = await resp.text()
+                        raise RuntimeError(f"Error HTTP {resp.status}: {body[:200]}")
+
+        except (aiohttp.ClientConnectorError, asyncio.TimeoutError) as e:
+            if attempt < retries:
+                await asyncio.sleep(2)
+                continue
+            raise RuntimeError("No se pudo generar la imagen. Verifica la conexión e intenta de nuevo.")
+
+    raise RuntimeError("Error desconocido al generar la imagen.")
 
 
 # ─── Modales ──────────────────────────────────────────────────────────────────
@@ -309,12 +383,13 @@ class IACog(commands.Cog):
     @app_commands.command(name="ia", description="Pregúntale algo a Autopy AI directamente.")
     @app_commands.describe(pregunta="¿Qué quieres preguntarle a la IA?")
     async def ia(self, interaction: discord.Interaction, pregunta: str):
-        await interaction.response.defer(thinking=True)
+        # Muestra "Generando respuesta..." inmediatamente mientras procesa
+        await interaction.response.send_message("💬 Generando respuesta...")
 
         cfg = get_channel_config(interaction.channel_id)
         messages = [
-            {"role": "system",  "content": cfg["personalidad"]},
-            {"role": "user",    "content": f"{interaction.user.display_name}: {pregunta}"},
+            {"role": "system", "content": cfg["personalidad"]},
+            {"role": "user",   "content": f"{interaction.user.display_name}: {pregunta}"},
         ]
 
         try:
@@ -323,17 +398,62 @@ class IACog(commands.Cog):
             if meta.get("latencyMs"):
                 provider_info += f" · {meta['latencyMs']}ms"
 
-            await interaction.followup.send(
-                f"**{interaction.user.mention} preguntó:** {pregunta}\n\n{text}\n\n"
-                f"-# Autopy AI {provider_info}"
+            await interaction.edit_original_response(
+                content=(
+                    f"**{interaction.user.mention} preguntó:** {pregunta}\n\n"
+                    f"{text}\n\n"
+                    f"-# Autopy AI {provider_info}"
+                )
             )
         except Exception as e:
-            await interaction.followup.send(f"⚠️ {e}", ephemeral=True)
+            await interaction.edit_original_response(content=f"⚠️ {e}")
+
+    # ── /iaimagen ────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="iaimagen", description="Genera una imagen con IA a partir de una descripción.")
+    @app_commands.describe(prompt="Describe la imagen que quieres generar.")
+    async def iaimagen(self, interaction: discord.Interaction, prompt: str):
+        # Muestra "Creando imagen..." inmediatamente mientras procesa
+        await interaction.response.send_message("🎨 Creando imagen...")
+
+        try:
+            url, b64_data, meta = await call_autopy_image(prompt)
+            provider_info = f"· {meta['provider']} / {meta['model']}"
+            if meta.get("latencyMs"):
+                provider_info += f" · {meta['latencyMs']}ms"
+
+            caption = f"**Prompt:** {prompt}\n-# Autopy AI {provider_info}"
+
+            if url and url.startswith("http"):
+                # URL pública — enviamos como embed con imagen
+                embed = discord.Embed(description=f"**Prompt:** {prompt}", color=0x7C3AED)
+                embed.set_image(url=url)
+                embed.set_footer(text=f"Autopy AI {provider_info}")
+                await interaction.edit_original_response(content="", embed=embed)
+
+            elif b64_data:
+                # Imagen en base64 (Gemini) — la enviamos como archivo adjunto
+                image_bytes = base64.b64decode(b64_data)
+                file = discord.File(fp=io.BytesIO(image_bytes), filename="imagen.png")
+                await interaction.edit_original_response(content=caption, attachments=[file])
+
+            else:
+                await interaction.edit_original_response(
+                    content="⚠️ No se recibió imagen del servidor. Intenta de nuevo."
+                )
+
+        except Exception as e:
+            await interaction.edit_original_response(content=f"⚠️ {e}")
 
     # ── /iamodelo ────────────────────────────────────────────────────────────
 
     @app_commands.command(name="iamodelo", description="Cambia el modelo de IA del canal actual.")
-    @app_commands.describe(modelo="Modelo a usar (auto, llama-3.3-70b-versatile, gemini-2.0-flash, gpt-4o-mini...)")
+    @app_commands.describe(
+        modelo=(
+            "Modelo a usar: llama-3.1-8b-instant · llama-3.3-70b-versatile · "
+            "gemini-2.5-flash · gemini-2.5-pro"
+        )
+    )
     @app_commands.checks.has_permissions(manage_messages=True)
     async def iamodelo(self, interaction: discord.Interaction, modelo: str):
         cfg = get_channel_config(interaction.channel_id)
@@ -375,7 +495,7 @@ class IACog(commands.Cog):
 
         # Actualizar historial (limitado a MAX_HISTORY mensajes)
         cfg["historial"].append({"role": "user",      "content": f"{message.author.display_name}: {message.content}"})
-        cfg["historial"].append({"role": "assistant", "content": text})
+        cfg["historial"].append({"role": "assistant",  "content": text})
         if len(cfg["historial"]) > MAX_HISTORY:
             cfg["historial"] = cfg["historial"][-MAX_HISTORY:]
         cfg["last_error"] = None

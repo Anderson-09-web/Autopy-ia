@@ -298,39 +298,6 @@ X-Admin-Key: tu-admin-key-secreta`} />
   "failoverCount": 0
 }`} />
 
-          {/* OpenAI-compat */}
-          <h3 id="oai" className="text-xl font-semibold mt-10 scroll-mt-20">Chat — Formato OpenAI Compatible</h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            Devuelve exactamente el mismo JSON que la API de OpenAI. Úsalo como drop-in para cualquier SDK o bot.
-          </p>
-          <EndpointHeader method="POST" path="/api/openai/v1/chat/completions"
-            description="Endpoint compatible con OpenAI. Acepta el mismo body que openai.chat.completions.create()." />
-          <CodeBlock language="python" code={`import openai
-
-client = openai.OpenAI(
-    api_key="apt_...",
-    base_url="${BASE}/api/openai/v1",
-)
-
-response = client.chat.completions.create(
-    model="llama-3.3-70b-versatile",
-    messages=[{"role": "user", "content": "Hola!"}],
-)
-print(response.choices[0].message.content)`} />
-          <CodeBlock language="json" code={`{
-  "id": "chatcmpl-a3f9e2b1c4d5",
-  "object": "chat.completion",
-  "created": 1721347200,
-  "model": "llama-3.3-70b-versatile",
-  "choices": [{
-    "index": 0,
-    "message": { "role": "assistant", "content": "¡Hola! ¿En qué puedo ayudarte?" },
-    "finish_reason": "stop"
-  }],
-  "usage": { "total_tokens": 42 },
-  "x_autopy": { "provider": "groq", "latency_ms": 620, "failover_count": 0 }
-}`} />
-
           {/* Images */}
           <h3 id="images" className="text-xl font-semibold mt-10 scroll-mt-20">Generación de imágenes</h3>
           <EndpointHeader method="POST" path="/api/v1/images"
@@ -532,7 +499,7 @@ print(response.choices[0].message.content)`} />
           <ParamTable params={[
             { name: "limit",    type: "int",    required: false, description: "Máx 10 000. Default: 1000." },
             { name: "status",   type: "string", required: false, description: "Filtrar por estado." },
-            { name: "provider", type: "string", required: false, description: "Filtrar por proveedor (openai | groq)." },
+            { name: "provider", type: "string", required: false, description: "Filtrar por proveedor (groq | gemini)." },
           ]} />
           <CodeBlock language="bash" code={`curl "${BASE}/api/admin/logs/export?limit=500&status=error" \\
   -H "X-Admin-Key: tu-admin-key" > errores.json`} />
@@ -575,7 +542,7 @@ curl -X DELETE "${BASE}/api/admin/logs?older_than_days=30&status=error" \\
   "requests": 28,
   "errors": 1,
   "avgLatencyMs": 512,
-  "byProvider": { "groq": 22, "openai": 6 },
+  "byProvider": { "groq": 20, "gemini": 8 },
   "recent": [...]
 }`} />
 
@@ -593,58 +560,66 @@ curl -X DELETE "${BASE}/api/admin/logs?older_than_days=30&status=error" \\
 
           <h3 id="sdk-python" className="text-xl font-semibold scroll-mt-20">Python</h3>
           <p className="text-sm text-muted-foreground mb-3">
-            Usa el SDK oficial de OpenAI apuntando la <code className="text-primary">base_url</code> a Autopy.
+            Llama directamente a la API REST con <code className="text-primary">aiohttp</code> o <code className="text-primary">requests</code>.
           </p>
-          <CodeBlock language="bash" code={`pip install openai`} />
-          <CodeBlock language="python" code={`import openai
+          <CodeBlock language="bash" code={`pip install aiohttp`} />
+          <CodeBlock language="python" code={`import asyncio, aiohttp
 
-client = openai.OpenAI(
-    api_key="apt_...",                     # tu Autopy API key
-    base_url="${BASE}/api/openai/v1",
-)
+API_KEY = "apt_..."
+BASE_URL = "${BASE}/api/v1"
 
-# Chat
-chat = client.chat.completions.create(
-    model="llama-3.3-70b-versatile",      # o "auto" para failover
-    messages=[
+async def chat(messages: list[dict], model="llama-3.3-70b-versatile") -> str:
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"{BASE_URL}/chat",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+            json={"messages": messages, "model": model},
+        ) as resp:
+            data = await resp.json()
+            return data["text"]
+
+# Ejemplo de uso
+async def main():
+    respuesta = await chat([
         {"role": "system", "content": "Eres un asistente de soporte."},
         {"role": "user",   "content": "¿Cómo cancelo mi suscripción?"},
-    ],
-)
-print(chat.choices[0].message.content)`} />
+    ])
+    print(respuesta)
+
+asyncio.run(main())`} />
 
           <h3 id="sdk-node" className="text-xl font-semibold mt-10 scroll-mt-20">Node.js / TypeScript</h3>
-          <CodeBlock language="bash" code={`npm install openai`} />
-          <CodeBlock language="typescript" code={`import OpenAI from "openai";
+          <CodeBlock language="typescript" code={`const API_KEY = "apt_...";
+const BASE_URL = "${BASE}/api/v1";
 
-const client = new OpenAI({
-  apiKey: "apt_...",
-  baseURL: "${BASE}/api/openai/v1",
+const response = await fetch(\`\${BASE_URL}/chat\`, {
+  method: "POST",
+  headers: {
+    "Authorization": \`Bearer \${API_KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    messages: [{ role: "user", content: "Hola desde TypeScript!" }],
+    model: "llama-3.3-70b-versatile",
+  }),
 });
 
-const response = await client.chat.completions.create({
-  model: "llama-3.3-70b-versatile",
-  messages: [{ role: "user", content: "Hola desde TypeScript!" }],
-});
-
-console.log(response.choices[0].message.content);`} />
+const data = await response.json();
+console.log(data.text);`} />
 
           <h3 id="sdk-discord" className="text-xl font-semibold mt-10 scroll-mt-20">Discord Bot (Python)</h3>
           <p className="text-sm text-muted-foreground mb-3">
-            Dos formas de integrar Autopy en un bot de Discord:
+            Integración sencilla con <code className="text-primary">aiohttp</code> — responde cuando mencionan al bot.
           </p>
-          <CodeBlock language="bash" code={`pip install discord.py openai`} />
-          <CodeBlock language="python" code={`import discord
-import openai
+          <CodeBlock language="bash" code={`pip install discord.py aiohttp`} />
+          <CodeBlock language="python" code={`import discord, aiohttp
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = discord.Client(intents=intents)
 
-ai = openai.AsyncOpenAI(
-    api_key="apt_...",
-    base_url="${BASE}/api/openai/v1",
-)
+API_KEY  = "apt_..."
+BASE_URL = "${BASE}/api/v1"
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -652,14 +627,20 @@ async def on_message(message: discord.Message):
         return
 
     async with message.channel.typing():
-        response = await ai.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system",  "content": "Eres el asistente del servidor."},
-                {"role": "user",    "content": message.clean_content},
-            ],
-        )
-        await message.reply(response.choices[0].message.content)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{BASE_URL}/chat",
+                headers={"Authorization": f"Bearer {API_KEY}"},
+                json={
+                    "messages": [
+                        {"role": "system", "content": "Eres el asistente del servidor."},
+                        {"role": "user",   "content": message.clean_content},
+                    ],
+                    "model": "llama-3.3-70b-versatile",
+                },
+            ) as resp:
+                data = await resp.json()
+                await message.reply(data["text"])
 
 bot.run("TU_DISCORD_TOKEN")`} />
 
@@ -711,8 +692,8 @@ bot.run("TU_DISCORD_TOKEN")`} />
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
               {[
                 { icon: "🔗", title: "/setia", desc: "Panel de control con botones para configurar canal, webhook e identidad de la IA." },
-                { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA en cualquier canal. Responde con proveedor y latencia." },
-                { icon: "🎛️", title: "/iamodelo nombre", desc: "Cambia el modelo de IA del canal (auto, llama-3.3-70b, gemini-2.0-flash…)." },
+                { icon: "💬", title: "/ia pregunta", desc: "Consulta directa a la IA. Muestra 'Generando respuesta...' mientras procesa." },
+                { icon: "🎨", title: "/iaimagen prompt", desc: "Genera una imagen con Gemini. Muestra 'Creando imagen...' mientras la crea." },
               ].map((f) => (
                 <div key={f.title} className="p-3 rounded-lg bg-black/20 border border-white/5">
                   <p className="text-sm font-mono font-semibold mb-1">{f.icon} {f.title}</p>
